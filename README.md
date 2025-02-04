@@ -1,66 +1,17 @@
-## Foundry
+## Clixpesa Mint Contracts
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+**Clixpesa V2 smart contracts for savings and micro-lending**
 
-Foundry consists of:
+Features include:
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+-   **Overdraft**: Complete transactions with low interest overdraws. 
+-   **Yield Bearing personal savings**: Set saving goals and challenges and earn some yield.
+-   **Group Savings and RoSCAs**: Save together in regular groups or using our RoSCA model
+-   **P2P Lending**: Users and RoSCAs Lend to each other. 
 
 ## Documentation
 
-https://book.getfoundry.sh/
-
 ## Usage
 
-### Build
+### Contributing
 
-```shell
-$ forge build
-```
-
-### Test
-
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
