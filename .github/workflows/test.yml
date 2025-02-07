@@ -38,7 +38,7 @@ jobs:
         id: build
 
       - name: Run Forge tests
-       env:
+        env:
           DEV_KEY: ${{ secrets.DEV_KEY }}
         run: |
           forge test -vvv
