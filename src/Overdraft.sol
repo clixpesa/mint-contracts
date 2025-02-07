@@ -96,11 +96,15 @@ contract CLXP_Overdraft is ReentrancyGuard, EIP712 {
         User storage userData = users[user];
         bytes32[] storage ids = userData.overdraftIds;
         Overdraft[] memory results = new Overdraft[](ids.length);
-
         for (uint256 i = 0; i < ids.length; i++) {
             results[i] = overdrafts[ids[i]];
         }
         return results;
+    }
+
+    function getPoolBalance() public view returns (uint256 usdStableBal, uint256 localStableBal) {
+        usdStableBal = IERC20(supportedTokens[0]).balanceOf(address(this));
+        localStableBal = IERC20(supportedTokens[1]).balanceOf(address(this));
     }
 
     ///// Private and Internal Fns  /////

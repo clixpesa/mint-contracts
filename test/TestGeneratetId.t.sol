@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {GenerateId} from "../src/libraries/GenerateId.sol";
 
-contract OverdraftIdTest is Test {
+contract GenerateIdTest is Test {
     function test_fuzz_GenerateIdwithKey(GenerateId.GenKey memory genKey) public pure {
         bytes6 expectedId = bytes6(keccak256(abi.encode(genKey)));
         assertEq(GenerateId.withKey(genKey), expectedId, "IDs not equal");

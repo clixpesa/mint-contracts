@@ -6,4 +6,8 @@ remappings = [
   '@openzeppelin/contracts=lib/openzeppelin-contracts/contracts',
 ]
 
+[profile.default.fuzz]
+runs = 1000
+seed = "0x4444"
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
