@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
-import {OverdraftKey} from "./libraries/OverdraftId.sol";
+import {GenerateId} from "./libraries/GenerateId.sol";
 import {console} from "forge-std/console.sol";
 
 contract CLXP_Overdraft is ReentrancyGuard, EIP712 {
@@ -49,6 +49,7 @@ contract CLXP_Overdraft is ReentrancyGuard, EIP712 {
     ///// State Variables           /////
     address[] private supportedTokens;
     address private relayer;
+    uint128 private idCounter;
     mapping(address => User) private users;
     mapping(bytes32 id => Overdraft) private overdrafts;
 
@@ -69,8 +70,8 @@ contract CLXP_Overdraft is ReentrancyGuard, EIP712 {
 
     ///// External Functions        /////
     function requestOverdraft(address user, address token, uint256 amount) external {
-        (bytes32 id, uint256 requestedAt) = _getId(user, token, amount);
-
+        bytes6 id = GenerateId.withAddressNCounter(user, ++idCounter);
+        uint256 requestedAt = block.timestamp;
         Overdraft memory overdraft = Overdraft({
             token: IERC20(token),
             state: Status.Active,
@@ -103,15 +104,4 @@ contract CLXP_Overdraft is ReentrancyGuard, EIP712 {
     }
 
     ///// Private and Internal Fns  /////
-    function _getId(address user, address token, uint256 amount)
-        internal
-        view
-        returns (bytes32 id, uint256 requestedAt)
-    {
-        requestedAt = block.timestamp;
-        OverdraftKey memory overdraftKey = OverdraftKey(token, user, requestedAt, amount);
-        id = overdraftKey.toId();
-        console.logBytes32(id);
-        return (id, requestedAt);
-    }
 }
