@@ -20,6 +20,7 @@ contract DeployOverdraft is Script {
         supportedTokens = [usdStable, localStable];
         vm.startBroadcast(deployerKey);
         CLXP_Overdraft overdraft = new CLXP_Overdraft(supportedTokens);
+        vm.stopBroadcast();
         return (overdraft, helperConfig);
     }
 }

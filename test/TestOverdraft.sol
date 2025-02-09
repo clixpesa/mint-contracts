@@ -16,8 +16,14 @@ contract TestOverdraft is Test {
     address mUSD;
     address mKES;
 
+    address public user = makeAddr("user");
+
     uint256 public constant PSTARTING_USD_BAL = 1000e18; //Pool USD Starting Balance $1000
     uint256 public constant PSTARTING_KES_BAL = 130000e18; //Pool KES/LocalStable Starting Balance $1000x130
+    uint256 public constant INITIAL_LIMIT = 5e18;
+    uint256 public constant MAX_LIMIT = 100e18;
+    uint256 public constant USER_REQUEST_1 = 4e18;
+    uint256 public constant USER_REQUEST_2 = 20e18;
 
     function setUp() public {
         deployer = new DeployOverdraft();
@@ -33,5 +39,42 @@ contract TestOverdraft is Test {
         (uint256 mUSDbal, uint256 mKESbal) = overdraft.getPoolBalance();
         assertEq(mUSDbal, PSTARTING_USD_BAL);
         assertEq(mKESbal, PSTARTING_KES_BAL);
+    }
+
+    function testUserIsSubscribedWithDefaults() public {
+        vm.prank(user);
+        overdraft.subscribeUser(user, 0);
+        CLXP_Overdraft.User memory thisUser = overdraft.getUser(user);
+        assertEq(thisUser.overdraftLimit, INITIAL_LIMIT);
+        vm.stopPrank();
+    }
+
+    function testUserIsSubscribedWithLimit() public {
+        vm.prank(user);
+        overdraft.subscribeUser(user, 10e18);
+        CLXP_Overdraft.User memory thisUser = overdraft.getUser(user);
+        assert(thisUser.overdraftLimit > INITIAL_LIMIT);
+        vm.stopPrank();
+    }
+
+    function testUserIsSubscribedWithVeryHighLimit() public {
+        vm.prank(user);
+        overdraft.subscribeUser(user, 1000e18);
+        CLXP_Overdraft.User memory thisUser = overdraft.getUser(user);
+        assertEq(thisUser.overdraftLimit, MAX_LIMIT);
+        vm.stopPrank();
+    }
+
+    function testUserRequestsShouldUpdateOverdraft() public {
+        vm.prank(user);
+        overdraft.subscribeUser(user, 50e18);
+        CLXP_Overdraft.User memory thisUser = overdraft.getUser(user);
+        uint256 availabeLimit = thisUser.availableLimit - USER_REQUEST_1;
+        overdraft.requestOverdraft(user, mUSD, USER_REQUEST_1);
+        CLXP_Overdraft.User memory updatedUser = overdraft.getUser(user);
+        CLXP_Overdraft.Overdraft memory thisOverdraft = overdraft.getOverdraftById(updatedUser.overdraftIds[0]);
+        assertEq(updatedUser.availableLimit, availabeLimit, "Available limit not chnaged");
+        assertEq(thisOverdraft.principal, USER_REQUEST_1, "Principal Not corret");
+        vm.stopPrank();
     }
 }
