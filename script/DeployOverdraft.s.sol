@@ -12,6 +12,7 @@ contract DeployOverdraft is Script {
     function run() external returns (CLXP_Overdraft, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
         (
+            ,
             address usdStable, //cUSD on celo //USDC/USDT on other chains
             address localStable, //cKES on celo //KEXC on other chains
             uint256 deployerKey
