@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.25;
 
 import {Test, console} from "forge-std/Test.sol";
 import {OverdraftKey} from "../src/libraries/OverdraftId.sol";
