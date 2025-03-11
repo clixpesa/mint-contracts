@@ -19,7 +19,8 @@ contract DeploySmartAccount is Script {
         ) = helperConfig.activeNetworkConfig();
         vm.broadcast(deployerKey);
         SmartAccountFactory factory = new SmartAccountFactory(IEntryPoint(entryPoint));
-        SmartAccount smartAccount = factory.createAccount(msg.sender, 0);
+        address owner = vm.addr(deployerKey);
+        SmartAccount smartAccount = factory.createAccount(owner, 0);
         return (smartAccount, helperConfig);
     }
 }

@@ -6,11 +6,12 @@ import "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
 import "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 
 import {DevOpsTools} from "lib/foundry-devops/src/DevOpsTools.sol";
 import {SmartAccount} from "../src/SmartAccount.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
-import {Script} from "forge-std/Script.sol";
+import {Script, console} from "forge-std/Script.sol";
 
 contract SendPackedUserOp is Script {
     using MessageHashUtils for bytes32;
@@ -29,7 +30,7 @@ contract SendPackedUserOp is Script {
         uint256 value = 0;
         address smartAccount = DevOpsTools.get_most_recent_deployment("SmartAccount", block.chainid);
 
-        bytes memory data = abi.encodeWithSelector(IERC20(usdStable).approve.selector, AN_APPROVER, 1e18);
+        bytes memory data = abi.encodeWithSelector(IERC20.approve.selector, AN_APPROVER, 1e18);
         bytes memory executeCalldata = abi.encodeWithSelector(SmartAccount.execute.selector, usdStable, value, data);
 
         PackedUserOperation memory packedUserOp = generateSignedUserOp(
@@ -47,17 +48,18 @@ contract SendPackedUserOp is Script {
         vm.broadcast();
         //address from deployerKey
         address account = vm.addr(deployerKey);
+        console.logAddress(account);
         IEntryPoint(entryPoint).handleOps(packedUserOps, payable(account));
         vm.stopBroadcast();
     }
 
     function generateSignedUserOp(
-        address smartAccount,
+        address account,
         bytes memory callData,
         HelperConfig.NetworkConfig memory networkConfig
     ) public view returns (PackedUserOperation memory) {
-        uint256 nonce = vm.getNonce(smartAccount) - 1;
-        PackedUserOperation memory userOp = _generateUnsignedUserOp(smartAccount, callData, nonce);
+        uint256 nonce = vm.getNonce(account) - 1;
+        PackedUserOperation memory userOp = _generateUnsignedUserOp(account, callData, nonce);
 
         bytes32 userOpHash = IEntryPoint(networkConfig.entryPoint).getUserOpHash(userOp);
         bytes32 digest = userOpHash.toEthSignedMessageHash();
