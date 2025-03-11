@@ -43,16 +43,11 @@ contract TestMetaTxHandler is Test {
 
         bytes32 digest = metaTxHandler.getDigestToSign(sender, receiver, value, mUSD, nonce, deadline);
 
-        // Sign the digest as sender
-        console.log("Domain separator:", uint256(metaTxHandler.getDomainSeparator()));
-        console.log("Digest to sign:", uint256(digest));
-        console.log("Sender address:", sender);
-
         //vm.prank(sender);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(SENDER_PRIVATE_KEY, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
         vm.prank(metaTxHandler.relayer());
-        metaTxHandler.executeMetaTx(sender, receiver, value, mUSD, nonce, deadline, signature);
+        metaTxHandler.executeMetaTransfer(sender, receiver, value, mUSD, nonce, deadline, signature);
         console.log("Balance of Receiver:", ERC20Mock(mUSD).balanceOf(receiver));
         assertEq(ERC20Mock(mUSD).balanceOf(receiver), value);
     }

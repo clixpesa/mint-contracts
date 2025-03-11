@@ -8,7 +8,7 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {GenerateId} from "./libraries/GenerateId.sol";
 import {console} from "forge-std/console.sol";
 
-contract CLXP_Overdraft is ReentrancyGuard, EIP712 {
+contract CLXP_Overdraft is ReentrancyGuard, EIP712 { 
     ///// Errors                    /////
     error OD_InvalidToken();
     error OD_MustMoreBeThanZero();
