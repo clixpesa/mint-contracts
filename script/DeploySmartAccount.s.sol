@@ -11,15 +11,11 @@ import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint
 contract DeploySmartAccount is Script {
     function run() external returns (SmartAccount, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
-        (
-            address entryPoint,
-            , //cUSD on celo //USDC/USDT on other chains
-            ,
-            uint256 deployerKey
-        ) = helperConfig.activeNetworkConfig();
-        vm.broadcast(deployerKey);
+        address entryPoint = helperConfig.getConfig().entryPoint;
+
+        vm.broadcast(vm.envUint("DEV_KEY"));
         SmartAccountFactory factory = new SmartAccountFactory(IEntryPoint(entryPoint));
-        address owner = vm.addr(deployerKey);
+        address owner = vm.addr(vm.envUint("ACC_1"));
         SmartAccount smartAccount = factory.createAccount(owner, 0);
         return (smartAccount, helperConfig);
     }

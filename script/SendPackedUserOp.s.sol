@@ -10,48 +10,14 @@ import "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 
 import {DevOpsTools} from "lib/foundry-devops/src/DevOpsTools.sol";
 import {SmartAccount} from "../src/SmartAccount.sol";
+import {VerifyingPaymaster} from "../src/VerifyingPaymaster.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
 import {Script, console} from "forge-std/Script.sol";
 
 contract SendPackedUserOp is Script {
     using MessageHashUtils for bytes32;
 
-    address constant AN_APPROVER = 0xa0Ee7A142d267C1f36714E4a8F75612F20a79720;
-
-    function run() external {
-        HelperConfig helperConfig = new HelperConfig();
-        (
-            address entryPoint,
-            address usdStable, //cUSD on celo //USDC/USDT on other chains
-            address localStable, //cKES on celo //KEXC on other chains
-            uint256 deployerKey
-        ) = helperConfig.activeNetworkConfig();
-
-        uint256 value = 0;
-        address smartAccount = DevOpsTools.get_most_recent_deployment("SmartAccount", block.chainid);
-
-        bytes memory data = abi.encodeWithSelector(IERC20.approve.selector, AN_APPROVER, 1e18);
-        bytes memory executeCalldata = abi.encodeWithSelector(SmartAccount.execute.selector, usdStable, value, data);
-
-        PackedUserOperation memory packedUserOp = generateSignedUserOp(
-            smartAccount,
-            executeCalldata,
-            HelperConfig.NetworkConfig({
-                entryPoint: entryPoint,
-                usdStable: usdStable,
-                localStable: localStable,
-                deployerKey: deployerKey
-            })
-        );
-        PackedUserOperation[] memory packedUserOps = new PackedUserOperation[](1);
-        packedUserOps[0] = packedUserOp;
-        vm.broadcast();
-        //address from deployerKey
-        address account = vm.addr(deployerKey);
-        console.logAddress(account);
-        IEntryPoint(entryPoint).handleOps(packedUserOps, payable(account));
-        vm.stopBroadcast();
-    }
+    function run() external {}
 
     function generateSignedUserOp(
         address account,
@@ -59,24 +25,65 @@ contract SendPackedUserOp is Script {
         HelperConfig.NetworkConfig memory networkConfig
     ) public view returns (PackedUserOperation memory) {
         uint256 nonce = vm.getNonce(account) - 1;
-        PackedUserOperation memory userOp = _generateUnsignedUserOp(account, callData, nonce);
+        PackedUserOperation memory userOp = _generateUnsignedUserOp(account, callData, nonce, hex"");
 
         bytes32 userOpHash = IEntryPoint(networkConfig.entryPoint).getUserOpHash(userOp);
         bytes32 digest = userOpHash.toEthSignedMessageHash();
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(networkConfig.deployerKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(vm.envUint("ACC_1"), digest);
 
         userOp.signature = abi.encodePacked(r, s, v); // Note the order
         return userOp;
     }
 
-    function _generateUnsignedUserOp(address smartAccount, bytes memory callData, uint256 nonce)
-        public
-        pure
-        returns (PackedUserOperation memory)
-    {
-        uint128 verificationGasLimit = 16777216;
-        uint128 callGasLimit = verificationGasLimit;
+    function generateSignedUserOpWithPaymaster(
+        address account,
+        bytes memory callData,
+        HelperConfig.NetworkConfig memory networkConfig
+    ) public view returns (PackedUserOperation memory) {
+        uint256 nonce = vm.getNonce(account) - 1;
+        //Prepare paymaster data
+        uint48 validUntil = uint48(block.timestamp + 10000);
+        uint48 validAfter = uint48(block.timestamp);
+        uint128 verificationGasLimit = 250000;
+        uint128 postOpGasLimit = 50000;
+        //paymaster data wihout signature
+        bytes memory paymasterData = abi.encodePacked(
+            networkConfig.paymaster, verificationGasLimit, postOpGasLimit, abi.encode(validUntil, validAfter), hex""
+        );
+        PackedUserOperation memory userOp = _generateUnsignedUserOp(account, callData, nonce, paymasterData);
+
+        bytes memory paymasterSignature =
+            _getPaymasterSignature(userOp, networkConfig.paymaster, validUntil, validAfter);
+        paymasterData = abi.encodePacked(
+            networkConfig.paymaster,
+            verificationGasLimit,
+            postOpGasLimit,
+            abi.encode(validUntil, validAfter),
+            paymasterSignature
+        );
+
+        //update the userOp
+        userOp.paymasterAndData = paymasterData;
+
+        bytes32 userOpHash = IEntryPoint(networkConfig.entryPoint).getUserOpHash(userOp);
+        //bytes32 digest =
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(vm.envUint("ACC_1"), userOpHash.toEthSignedMessageHash());
+
+        userOp.signature = abi.encodePacked(r, s, v); // Note the order
+
+        return userOp;
+    }
+
+    function _generateUnsignedUserOp(
+        address smartAccount,
+        bytes memory callData,
+        uint256 nonce,
+        bytes memory paymasterData
+    ) public pure returns (PackedUserOperation memory) {
+        uint128 verificationGasLimit = 250000;
+        uint128 callGasLimit = 50000;
         uint128 maxPriorityFeePerGas = 256;
         uint128 maxFeePerGas = maxPriorityFeePerGas;
         return PackedUserOperation({
@@ -87,8 +94,19 @@ contract SendPackedUserOp is Script {
             accountGasLimits: bytes32(uint256(verificationGasLimit) << 128 | callGasLimit),
             preVerificationGas: verificationGasLimit,
             gasFees: bytes32(uint256(maxPriorityFeePerGas) << 128 | maxFeePerGas),
-            paymasterAndData: hex"",
+            paymasterAndData: paymasterData,
             signature: hex""
         });
+    }
+
+    function _getPaymasterSignature(
+        PackedUserOperation memory userOp,
+        address paymaster,
+        uint48 validUntil,
+        uint48 validAfter
+    ) public view returns (bytes memory) {
+        bytes32 paymasterHash = VerifyingPaymaster(paymaster).getHash(userOp, validUntil, validAfter);
+        (uint8 pv, bytes32 pr, bytes32 ps) = vm.sign(vm.envUint("VERIFIER_KEY"), paymasterHash.toEthSignedMessageHash());
+        return abi.encodePacked(pr, ps, pv);
     }
 }
