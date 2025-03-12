@@ -17,7 +17,7 @@ import "@account-abstraction/contracts/core/Helpers.sol";
  * - the paymaster checks a signature to agree to PAY for GAS.
  * - the account checks a signature to prove identity and account ownership.
  */
-contract VerifyingPaymaster is BasePaymaster {
+contract Paymaster is BasePaymaster {
     using UserOperationLib for PackedUserOperation;
 
     address public immutable verifyingSigner;
