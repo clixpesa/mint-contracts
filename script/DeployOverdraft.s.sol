@@ -13,13 +13,13 @@ contract DeployOverdraft is Script {
         HelperConfig helperConfig = new HelperConfig();
         (
             ,
+            ,
             address usdStable, //cUSD on celo //USDC/USDT on other chains
-            address localStable, //cKES on celo //KEXC on other chains
-            uint256 deployerKey
+            address localStable //cKES on celo //KEXC on other chains
         ) = helperConfig.activeNetworkConfig();
 
         supportedTokens = [usdStable, localStable];
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast(vm.envUint("DEV_KEY"));
         CLXP_Overdraft overdraft = new CLXP_Overdraft(supportedTokens);
         return (overdraft, helperConfig);
     }
