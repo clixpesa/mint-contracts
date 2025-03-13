@@ -5,7 +5,7 @@ pragma solidity ^0.8.25;
 import {Script} from "forge-std/Script.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {EntryPoint} from "@account-abstraction/contracts/core/EntryPoint.sol";
-import {VerifyingPaymaster} from "../src/VerifyingPaymaster.sol";
+import {Paymaster} from "../src/Paymaster.sol";
 
 contract HelperConfig is Script {
     NetworkConfig public activeNetworkConfig;
@@ -49,7 +49,7 @@ contract HelperConfig is Script {
         vm.startBroadcast();
         address verifier = vm.addr(vm.envUint("VERIFIER_KEY"));
         EntryPoint entryPoint = new EntryPoint();
-        VerifyingPaymaster paymaster = new VerifyingPaymaster(entryPoint, verifier);
+        Paymaster paymaster = new Paymaster(entryPoint, verifier);
         ERC20Mock usdStableMock = new ERC20Mock();
         ERC20Mock localStableMock = new ERC20Mock();
         vm.stopBroadcast();
