@@ -875,7 +875,9 @@ __metadata:
   dependencies:
     "@types/node": "npm:^22.13.10"
     dotenv: "npm:^16.4.7"
+    permissionless: "npm:^0.2.36"
     tsx: "npm:^4.19.3"
+    typescript: "npm:^5.8.2"
     viem: "npm:^2.23.10"
   languageName: unknown
   linkType: soft
@@ -982,6 +984,19 @@ __metadata:
     lru-cache: "npm:^10.2.0"
     minipass: "npm:^5.0.0 || ^6.0.2 || ^7.0.0"
   checksum: 10c0/32a13711a2a505616ae1cc1b5076801e453e7aae6ac40ab55b388bb91b9d0547a52f5aaceff710ea400205f18691120d4431e520afbe4266b836fadede15872d
+  languageName: node
+  linkType: hard
+
+"permissionless@npm:^0.2.36":
+  version: 0.2.36
+  resolution: "permissionless@npm:0.2.36"
+  peerDependencies:
+    ox: 0.6.7
+    viem: ^2.23.2
+  peerDependenciesMeta:
+    ox:
+      optional: true
+  checksum: 10c0/4d129712c99fd8a13961048fbc14f0fe722eea55739f45298cd879ec8edf0e4ed72fdb8906cd20adc694cc9f7c5b5f0bcdc68055661426f6093f0b668e3a28e9
   languageName: node
   linkType: hard
 
@@ -1177,6 +1192,26 @@ __metadata:
   bin:
     tsx: dist/cli.mjs
   checksum: 10c0/cacfb4cf1392ae10e8e4fe032ad26ccb07cd8a3b32e5a0da270d9c48d06ee74f743e4a84686cbc9d89b48032d59bbc56cd911e076f53cebe61dc24fa525ff790
+  languageName: node
+  linkType: hard
+
+"typescript@npm:^5.8.2":
+  version: 5.8.2
+  resolution: "typescript@npm:5.8.2"
+  bin:
+    tsc: bin/tsc
+    tsserver: bin/tsserver
+  checksum: 10c0/5c4f6fbf1c6389b6928fe7b8fcd5dc73bb2d58cd4e3883f1d774ed5bd83b151cbac6b7ecf11723de56d4676daeba8713894b1e9af56174f2f9780ae7848ec3c6
+  languageName: node
+  linkType: hard
+
+"typescript@patch:typescript@npm%3A^5.8.2#optional!builtin<compat/typescript>":
+  version: 5.8.2
+  resolution: "typescript@patch:typescript@npm%3A5.8.2#optional!builtin<compat/typescript>::version=5.8.2&hash=5786d5"
+  bin:
+    tsc: bin/tsc
+    tsserver: bin/tsserver
+  checksum: 10c0/5448a08e595cc558ab321e49d4cac64fb43d1fa106584f6ff9a8d8e592111b373a995a1d5c7f3046211c8a37201eb6d0f1566f15cdb7a62a5e3be01d087848e2
   languageName: node
   linkType: hard
 

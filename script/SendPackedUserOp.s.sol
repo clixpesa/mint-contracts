@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 
 import {DevOpsTools} from "lib/foundry-devops/src/DevOpsTools.sol";
 import {SmartAccount} from "../src/SmartAccount.sol";
-import {VerifyingPaymaster} from "../src/VerifyingPaymaster.sol";
+import {Paymaster} from "../src/Paymaster.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
 import {Script, console} from "forge-std/Script.sol";
 
@@ -105,7 +105,7 @@ contract SendPackedUserOp is Script {
         uint48 validUntil,
         uint48 validAfter
     ) public view returns (bytes memory) {
-        bytes32 paymasterHash = VerifyingPaymaster(paymaster).getHash(userOp, validUntil, validAfter);
+        bytes32 paymasterHash = Paymaster(paymaster).getHash(userOp, validUntil, validAfter);
         (uint8 pv, bytes32 pr, bytes32 ps) = vm.sign(vm.envUint("VERIFIER_KEY"), paymasterHash.toEthSignedMessageHash());
         return abi.encodePacked(pr, ps, pv);
     }
