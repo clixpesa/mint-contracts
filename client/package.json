@@ -1,0 +1,20 @@
+{
+  "name": "mint-client",
+  "version": "1.0.0",
+  "description": "Test contracts",
+  "main": "index.ts",
+  "author": "@kachdekan",
+  "license": "Apache-2.0",
+  "scripts": {
+    "start": "tsx index.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "viem": "^2.23.10"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3"
+  },
+  "packageManager": "yarn@4.7.0"
+}
