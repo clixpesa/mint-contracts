@@ -1,6 +1,6 @@
-import {account, accountClient, publicClient, pimlicoClient} from "./src/config"
+import {account, clixpesaAccount, accountClient, publicClient, pimlicoClient} from "./src/config"
 
-console.log("Account Address:", account.address);
+console.log("Account Address:", clixpesaAccount.address);
 
 //1st Tx
 const txHash = await accountClient.sendTransaction({
