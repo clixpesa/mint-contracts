@@ -28,7 +28,7 @@ contract TestOverdraft is Test {
     function setUp() public {
         deployer = new DeployOverdraft();
         (overdraft, config) = deployer.run();
-        (mUSD, mKES,) = config.activeNetworkConfig();
+        (,, mUSD, mKES) = config.activeNetworkConfig();
 
         ERC20Mock(mUSD).mint(address(overdraft), PSTARTING_USD_BAL);
         ERC20Mock(mKES).mint(address(overdraft), PSTARTING_KES_BAL);
@@ -77,5 +77,4 @@ contract TestOverdraft is Test {
         assertEq(thisOverdraft.principal, USER_REQUEST_1, "Principal Not corret");
         vm.stopPrank();
     }
-
 }

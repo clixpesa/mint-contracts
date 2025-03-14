@@ -7,7 +7,7 @@ import {DeploySmartAccount} from "../script/DeploySmartAccount.s.sol";
 import {HelperConfig} from "../script/HelperConfig.s.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {SendPackedUserOp, PackedUserOperation, IEntryPoint, VerifyingPaymaster} from "script/SendPackedUserOp.s.sol";
+import {SendPackedUserOp, PackedUserOperation, IEntryPoint, Paymaster} from "script/SendPackedUserOp.s.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 
 contract TestSmartAccount is Test {
@@ -29,7 +29,7 @@ contract TestSmartAccount is Test {
         console.log("Account:", address(smartAccount));
         console.log("Paymaster:", networkConfig.paymaster);
         vm.deal(networkConfig.paymaster, 10e18);
-        VerifyingPaymaster(networkConfig.paymaster).deposit{value: 2e18}();
+        Paymaster(networkConfig.paymaster).deposit{value: 2e18}();
         console.log("Paymaster bal:", address(networkConfig.paymaster).balance);
         uint256 eBalance = IEntryPoint(networkConfig.entryPoint).getDepositInfo(networkConfig.paymaster).deposit;
         console.log("Entrypoint bal:", eBalance);
