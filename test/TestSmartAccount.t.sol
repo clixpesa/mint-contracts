@@ -24,7 +24,7 @@ contract TestSmartAccount is Test {
 
     function setUp() public {
         DeploySmartAccount deploySmartAccount = new DeploySmartAccount();
-        (smartAccount, helperConfig) = deploySmartAccount.run();
+        (smartAccount, helperConfig,) = deploySmartAccount.run();
         networkConfig = helperConfig.getConfig();
         console.log("Account:", address(smartAccount));
         console.log("Paymaster:", networkConfig.paymaster);

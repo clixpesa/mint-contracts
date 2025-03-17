@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.25;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {GenerateId} from "./libraries/GenerateId.sol";
 import {console} from "forge-std/console.sol";
 
-contract CLXP_Overdraft is ReentrancyGuard, EIP712 { 
+contract ClixpesaOverdraft is ReentrancyGuard {
     ///// Errors                    /////
     error OD_InvalidToken();
+    error OD_InvalidKey();
     error OD_MustMoreBeThanZero();
     error OD_InsufficientBalance();
     error OD_InsufficientAllowance();
@@ -21,21 +20,25 @@ contract CLXP_Overdraft is ReentrancyGuard, EIP712 {
 
     ///// Structs                   /////
     enum Status {
-        Active,
-        Repaid,
+        Good,
+        Grace,
         Defaulted
     }
 
     struct Overdraft {
         IERC20 token;
-        Status state;
         address userAddress;
-        uint256 principal;
-        uint256 amountDue; //principal + fees
-        uint256 amountRepaid;
-        uint256 dailyServiceFee;
-        uint256 startTime;
-        uint256 dueTime;
+        uint256 tokenAmount;
+        uint256 amountUSD; //to change so that its demonimated in user curreny
+        uint256 takenAt;
+    }
+
+    struct OverdraftDebt {
+        uint256 amountDue; //in USD: to change to local currency
+        uint256 serviceFee;
+        uint256 effectTime; //updated on new overdraft + 1wk
+        uint256 dueTime; //updated on new overdraft + 1wk
+        Status state;
     }
 
     struct User {
@@ -44,8 +47,8 @@ contract CLXP_Overdraft is ReentrancyGuard, EIP712 {
         uint256 lastReviewTime;
         uint256 nextReviewTime;
         bytes6[] overdraftIds;
+        OverdraftDebt overdraftDebt;
         uint256 suspendedUntil; //0 if not suspended
-        uint256 nonce; // Nonce for meta transactions
     }
 
     ///// State Variables           /////
@@ -53,7 +56,7 @@ contract CLXP_Overdraft is ReentrancyGuard, EIP712 {
     uint256 private constant MAX_LIMIT = 100e18; //Initial overdraft limit in USD
 
     address[] private supportedTokens;
-    address private relayer;
+    bytes32 private subscriptionKey;
     uint128 private idCounter;
     //mapping(address => bool) private poolTokens;
     mapping(address => User) private users;
@@ -61,7 +64,11 @@ contract CLXP_Overdraft is ReentrancyGuard, EIP712 {
 
     ///// Events                    /////
     event UserSubscribed(address indexed user, uint256 indexed limit, uint256 time);
-    event OverdraftRequested(
+    event UserUnsubscribed(address indexed user, uint256 time);
+    event OverdraftUsed(
+        bytes6 indexed id, address indexed user, uint256 indexed amountUSD, address token, uint256 tokenAmount
+    );
+    event OverdraftRepaid(
         bytes6 indexed id, address indexed user, uint256 indexed amountUSD, address token, uint256 tokenAmount
     );
 
@@ -73,44 +80,49 @@ contract CLXP_Overdraft is ReentrancyGuard, EIP712 {
         _;
     }
 
-    constructor(address[] memory _supportedTokens) EIP712("Overdraft", "1") {
+    constructor(address[] memory _supportedTokens, string memory _key) {
         supportedTokens = _supportedTokens;
-        relayer = msg.sender;
+        subscriptionKey = keccak256(abi.encodePacked(_key));
     }
 
     ///// External Functions        /////
-    function requestOverdraft(address userAddress, address token, uint256 amount) external {
+    function useOverdraft(address userAddress, address token, uint256 amount) external {
         User storage user = users[userAddress];
         //Perform checks
         if (user.overdraftLimit == 0) revert OD_NotSubscribed();
-        //if (supportedTokens[0] != token || supportedTokens[1] != token) revert OD_InvalidToken();
+        if (supportedTokens[0] != token || supportedTokens[1] != token) revert OD_InvalidToken();
         if (amount == 0) revert OD_MustMoreBeThanZero();
         if (amount > user.availableLimit) revert OD_LimitExceeded();
 
         bytes6 id = GenerateId.withAddressNCounter(userAddress, ++idCounter);
         uint256 requestedAt = block.timestamp;
+        uint256 amountUSD = _getDebtValue(amount, token);
         Overdraft memory overdraft = Overdraft({
             token: IERC20(token),
-            state: Status.Active,
             userAddress: payable(userAddress),
-            principal: amount,
-            amountDue: amount + 10e18,
-            amountRepaid: 0,
-            dailyServiceFee: 10e6,
-            startTime: requestedAt,
-            dueTime: requestedAt + 30 days
+            tokenAmount: amount,
+            amountUSD: amount + 10e18,
+            takenAt: requestedAt
         });
         overdrafts[id] = overdraft;
         user.availableLimit = user.availableLimit - amount;
         user.overdraftIds.push(id);
+        user.overdraftDebt = OverdraftDebt({
+            amountDue: user.overdraftDebt.amountDue + amountUSD,
+            serviceFee: _getServiceFee(amountUSD),
+            effectTime: user.overdraftDebt.effectTime == 0 ? block.timestamp : user.overdraftDebt.effectTime + 7 days,
+            dueTime: user.overdraftDebt.dueTime == 0 ? block.timestamp + 30 days : user.overdraftDebt.dueTime + 7 days,
+            state: Status.Good
+        });
         //Update User
         users[userAddress] = user;
 
-        emit OverdraftRequested(id, userAddress, amount, token, amount);
+        emit OverdraftUsed(id, userAddress, amount, token, amount);
     }
 
-    function subscribeUser(address user, uint256 initialLimit) external {
+    function subscribeUser(address user, uint256 initialLimit, string memory key) external {
         if (user == address(0)) revert OD_InvalidUser();
+        if (subscriptionKey != keccak256(abi.encodePacked(key))) revert OD_InvalidKey();
         if (initialLimit == 0 || initialLimit < INITIAL_LIMIT) initialLimit = INITIAL_LIMIT;
         if (initialLimit > MAX_LIMIT) initialLimit = MAX_LIMIT;
         uint256 subscribedAt = block.timestamp;
@@ -120,8 +132,8 @@ contract CLXP_Overdraft is ReentrancyGuard, EIP712 {
             lastReviewTime: subscribedAt,
             nextReviewTime: subscribedAt + 60 days,
             overdraftIds: new bytes6[](0),
-            suspendedUntil: 0,
-            nonce: 0
+            overdraftDebt: OverdraftDebt({amountDue: 0, serviceFee: 0, effectTime: 0, dueTime: 0, state: Status.Good}),
+            suspendedUntil: 0
         });
         emit UserSubscribed(user, initialLimit, subscribedAt);
     }
@@ -132,6 +144,7 @@ contract CLXP_Overdraft is ReentrancyGuard, EIP712 {
      */
     function unsubscribeUser(address user) external {
         delete users[user];
+        emit UserUnsubscribed(user, block.timestamp);
     }
     ///// Public Functions          /////
     ///// Getters                   /////
@@ -150,7 +163,8 @@ contract CLXP_Overdraft is ReentrancyGuard, EIP712 {
         return results;
     }
 
-    function getPoolBalance() public view returns (uint256 usdStableBal, uint256 localStableBal) {
+    function getPoolBalance() public view returns (uint256 nativeBal, uint256 usdStableBal, uint256 localStableBal) {
+        nativeBal = address(this).balance;
         usdStableBal = IERC20(supportedTokens[0]).balanceOf(address(this));
         localStableBal = IERC20(supportedTokens[1]).balanceOf(address(this));
     }
@@ -160,4 +174,14 @@ contract CLXP_Overdraft is ReentrancyGuard, EIP712 {
     }
 
     ///// Private and Internal Fns  /////
+    function _getDebtValue(uint256 amount, address token) internal view returns (uint256 amountUSD) {
+        //Todo: Impliment price check with Uniswap V3
+        if (token == supportedTokens[0]) {
+            return amount * 1;
+        } else if (token == supportedTokens[1]) {
+            return (amount * 89 * 1e16) / 1e18;
+        }
+    }
+
+    function _getServiceFee(uint256 amount) internal view returns (uint256) {}
 }
