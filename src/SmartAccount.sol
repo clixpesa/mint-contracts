@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "@account-abstraction/contracts/core/BaseAccount.sol";
 import "@account-abstraction/contracts/core/Helpers.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./callback/TokenCallbackHandler.sol";
 
 /**
@@ -142,6 +143,12 @@ contract SmartAccount is BaseAccount, TokenCallbackHandler, UUPSUpgradeable, Ini
     function withdrawDepositTo(address payable withdrawAddress, uint256 amount) public onlyOwner {
         entryPoint().withdrawTo(withdrawAddress, amount);
     }
+
+    /**
+     * repay any outstanding overdraft debt
+     * @dev triggered by token transfer events to this account
+     */
+    function repayOvedraft() external view {}
 
     function _authorizeUpgrade(address newImplementation) internal view override {
         (newImplementation);
