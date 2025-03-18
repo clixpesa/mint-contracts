@@ -90,4 +90,44 @@ contract TestOverdraft is Test {
         thisUser = overdraft.getUser(user);
         assert(amountDueNow < thisUser.overdraftDebt.amountDue);
     }
+
+    function testOverdraftPartialRepayment() public {
+        overdraft.subscribeUser(user, 50e18, "CPODTest");
+        vm.prank(user);
+        ERC20Mock(mUSD).approve(address(overdraft), 50e18);
+        overdraft.useOverdraft(user, mUSD, USER_REQUEST_2);
+        vm.stopPrank();
+        ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
+        uint256 userDebt = thisUser.overdraftDebt.amountDue;
+        assertEq(ERC20Mock(mUSD).balanceOf(user), USER_REQUEST_2, "Wrong Debt Value");
+        overdraft.repayOverdraft(user, mUSD, 10e18);
+        thisUser = overdraft.getUser(user);
+        assertEq(thisUser.overdraftDebt.amountDue, userDebt - 10e18, "Wrong Debt Value");
+    }
+
+    function testOverdraftFullRepayment() public {
+        overdraft.subscribeUser(user, 50e18, "CPODTest");
+        vm.prank(user);
+        ERC20Mock(mUSD).approve(address(overdraft), 50e18);
+        overdraft.useOverdraft(user, mUSD, USER_REQUEST_2);
+        vm.stopPrank();
+        assertEq(ERC20Mock(mUSD).balanceOf(user), USER_REQUEST_2, "Wrong Debt Value");
+        overdraft.repayOverdraft(user, mUSD, USER_REQUEST_2);
+        ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
+        assertEq(thisUser.overdraftDebt.amountDue, 0, "Wrong Debt Value");
+    }
+
+    function testOverdraftRepaymentWithExcess() public {
+        overdraft.subscribeUser(user, 50e18, "CPODTest");
+        vm.prank(user);
+        ERC20Mock(mUSD).approve(address(overdraft), 50e18);
+        overdraft.useOverdraft(user, mUSD, USER_REQUEST_2);
+        vm.stopPrank();
+        ERC20Mock(mUSD).mint(user, USER_REQUEST_2);
+        assertEq(ERC20Mock(mUSD).balanceOf(user), USER_REQUEST_2 * 2, "Wrong Balance");
+        overdraft.repayOverdraft(user, mUSD, USER_REQUEST_2 * 2);
+        ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
+        assertEq(thisUser.overdraftDebt.amountDue, 0, "Wrong Debt Value");
+        assertEq(ERC20Mock(mUSD).balanceOf(user), USER_REQUEST_2, "Wrong Balance");
+    }
 }

@@ -118,6 +118,7 @@ contract ClixpesaOverdraft is ReentrancyGuard {
             state: Status.Good
         });
         //Update User
+        require(IERC20(token).transfer(userAddress, amount), "Tranfer failed");
         users[userAddress] = user;
 
         emit OverdraftUsed(userAddress, amount, token, amount);
@@ -126,6 +127,8 @@ contract ClixpesaOverdraft is ReentrancyGuard {
     function repayOverdraft(address userAddress, address token, uint256 amount) external {
         if (supportedTokens[0] != token && supportedTokens[1] != token) revert OD_InvalidToken();
         if (amount == 0) revert OD_MustMoreBeThanZero();
+        if (IERC20(token).balanceOf(userAddress) < amount) revert OD_InsufficientBalance();
+
         User storage user = users[userAddress];
 
         if (user.overdraftDebt.amountDue == 0) revert OD_NoOverdarftDebt();
@@ -134,11 +137,11 @@ contract ClixpesaOverdraft is ReentrancyGuard {
         if (amountUSD > user.overdraftDebt.amountDue) {
             //get equivalent token amount of actual amount due.
             uint256 tokenAmount = _getTokenAmount(user.overdraftDebt.amountDue, token);
-            IERC20(token).transferFrom(userAddress, address(this), tokenAmount);
+            require(IERC20(token).transferFrom(userAddress, address(this), tokenAmount), "Repayment Failed");
             user.overdraftDebt.amountDue = 0; //since the token will be enough to cover full debt
             emit OverdraftPaid(userAddress, user.overdraftDebt.amountDue, token, tokenAmount);
         } else {
-            IERC20(token).transferFrom(userAddress, address(this), amount);
+            require(IERC20(token).transferFrom(userAddress, address(this), amount), "Repayment Failed");
             user.overdraftDebt.amountDue = user.overdraftDebt.amountDue - amountUSD;
             emit OverdraftPaid(userAddress, amountUSD, token, amount);
         }

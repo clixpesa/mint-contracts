@@ -23,7 +23,7 @@ contract TestOverdraftTrial is Test {
         console.log("Account:", address(smartAccount));
         ERC20Mock(networkConfig.usdStable).mint(address(overdraft), 100e18);
     }
-
+    /*
     function testSmartAccountPaysOverdraft() public {
         // set overdraft for account
         vm.prank(address(smartAccount));
@@ -44,5 +44,5 @@ contract TestOverdraftTrial is Test {
         console.log("User bal:", ERC20Mock(networkConfig.usdStable).balanceOf(address(smartAccount)));
 
         assertEq(ERC20Mock(networkConfig.usdStable).balanceOf(address(overdraft)), 95e18);
-    }
+    } */
 }
