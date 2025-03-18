@@ -14,6 +14,7 @@ contract ClixpesaOverdraft is ReentrancyGuard {
     error OD_InsufficientBalance();
     error OD_InsufficientAllowance();
     error OD_OverdraftLimitReached();
+    error OD_NoOverdarftDebt();
     error OD_LimitExceeded();
     error OD_InvalidUser();
     error OD_NotSubscribed();
@@ -66,12 +67,8 @@ contract ClixpesaOverdraft is ReentrancyGuard {
     ///// Events                    /////
     event UserSubscribed(address indexed user, uint256 indexed limit, uint256 time);
     event UserUnsubscribed(address indexed user, uint256 time);
-    event OverdraftUsed(
-        bytes6 indexed id, address indexed user, uint256 indexed amountUSD, address token, uint256 tokenAmount
-    );
-    event OverdraftRepaid(
-        bytes6 indexed id, address indexed user, uint256 indexed amountUSD, address token, uint256 tokenAmount
-    );
+    event OverdraftUsed(address indexed user, uint256 indexed amountUSD, address token, uint256 tokenAmount);
+    event OverdraftPaid(address indexed user, uint256 indexed amountUSD, address token, uint256 tokenAmount);
 
     ///// Modifiers                 /////
     modifier moreThanZero(uint256 _amount) {
@@ -97,7 +94,7 @@ contract ClixpesaOverdraft is ReentrancyGuard {
 
         bytes6 id = GenerateId.withAddressNCounter(userAddress, ++idCounter);
         uint256 requestedAt = block.timestamp;
-        uint256 amountUSD = _getDebtValue(amount, token);
+        uint256 amountUSD = _getAmountValue(amount, token);
 
         Overdraft memory overdraft = Overdraft({
             token: IERC20(token),
@@ -123,10 +120,44 @@ contract ClixpesaOverdraft is ReentrancyGuard {
         //Update User
         users[userAddress] = user;
 
-        emit OverdraftUsed(id, userAddress, amount, token, amount);
+        emit OverdraftUsed(userAddress, amount, token, amount);
     }
 
-    function repayOverdraft(address userAddress, address token, uint256 tokenAmount) external view {}
+    function repayOverdraft(address userAddress, address token, uint256 amount) external {
+        if (supportedTokens[0] != token && supportedTokens[1] != token) revert OD_InvalidToken();
+        if (amount == 0) revert OD_MustMoreBeThanZero();
+        User storage user = users[userAddress];
+
+        if (user.overdraftDebt.amountDue == 0) revert OD_NoOverdarftDebt();
+        uint256 amountUSD = _getAmountValue(amount, token);
+
+        if (amountUSD > user.overdraftDebt.amountDue) {
+            //get equivalent token amount of actual amount due.
+            uint256 tokenAmount = _getTokenAmount(user.overdraftDebt.amountDue, token);
+            IERC20(token).transferFrom(userAddress, address(this), tokenAmount);
+            user.overdraftDebt.amountDue = 0; //since the token will be enough to cover full debt
+            emit OverdraftPaid(userAddress, user.overdraftDebt.amountDue, token, tokenAmount);
+        } else {
+            IERC20(token).transferFrom(userAddress, address(this), amount);
+            user.overdraftDebt.amountDue = user.overdraftDebt.amountDue - amountUSD;
+            emit OverdraftPaid(userAddress, amountUSD, token, amount);
+        }
+
+        if (user.overdraftDebt.amountDue == 0) {
+            //Clear the debt
+            user.overdraftDebt = OverdraftDebt({
+                amountDue: 0,
+                serviceFee: 0,
+                effectTime: 0,
+                dueTime: 0,
+                principal: 0,
+                state: Status.Good
+            });
+            users[userAddress] = user;
+        } else {
+            users[userAddress] = user;
+        }
+    }
 
     function subscribeUser(address user, uint256 initialLimit, string memory key) external {
         if (user == address(0)) revert OD_InvalidUser();
@@ -200,7 +231,16 @@ contract ClixpesaOverdraft is ReentrancyGuard {
     }
 
     ///// Private and Internal Fns  /////
-    function _getDebtValue(uint256 amount, address token) internal view returns (uint256 amountUSD) {
+    function _getAmountValue(uint256 amount, address token) internal view returns (uint256 amountUSD) {
+        //Todo: Impliment price check with Uniswap V3
+        if (token == supportedTokens[0]) {
+            return amount * 1;
+        } else if (token == supportedTokens[1]) {
+            return (amount * 89 * 1e16) / 1e18;
+        }
+    }
+
+    function _getTokenAmount(uint256 amount, address token) internal view returns (uint256 amountUSD) {
         //Todo: Impliment price check with Uniswap V3
         if (token == supportedTokens[0]) {
             return amount * 1;
