@@ -38,6 +38,7 @@ contract ClixpesaOverdraft is ReentrancyGuard {
         uint256 serviceFee;
         uint256 effectTime; //updated on new overdraft + 1wk
         uint256 dueTime; //updated on new overdraft + 1wk
+        uint256 principal; //will be updated based on amounts overdrawn (USD)
         Status state;
     }
 
@@ -60,7 +61,7 @@ contract ClixpesaOverdraft is ReentrancyGuard {
     uint128 private idCounter;
     //mapping(address => bool) private poolTokens;
     mapping(address => User) private users;
-    mapping(bytes32 id => Overdraft) private overdrafts;
+    mapping(bytes6 id => Overdraft) private overdrafts;
 
     ///// Events                    /////
     event UserSubscribed(address indexed user, uint256 indexed limit, uint256 time);
@@ -88,30 +89,35 @@ contract ClixpesaOverdraft is ReentrancyGuard {
     ///// External Functions        /////
     function useOverdraft(address userAddress, address token, uint256 amount) external {
         User storage user = users[userAddress];
-        //Perform checks
+        console.log(supportedTokens[0], token);
         if (user.overdraftLimit == 0) revert OD_NotSubscribed();
-        if (supportedTokens[0] != token || supportedTokens[1] != token) revert OD_InvalidToken();
+        if (supportedTokens[0] != token && supportedTokens[1] != token) revert OD_InvalidToken();
         if (amount == 0) revert OD_MustMoreBeThanZero();
         if (amount > user.availableLimit) revert OD_LimitExceeded();
 
         bytes6 id = GenerateId.withAddressNCounter(userAddress, ++idCounter);
         uint256 requestedAt = block.timestamp;
         uint256 amountUSD = _getDebtValue(amount, token);
+
         Overdraft memory overdraft = Overdraft({
             token: IERC20(token),
             userAddress: payable(userAddress),
             tokenAmount: amount,
-            amountUSD: amount + 10e18,
+            amountUSD: amountUSD,
             takenAt: requestedAt
         });
         overdrafts[id] = overdraft;
+
         user.availableLimit = user.availableLimit - amount;
         user.overdraftIds.push(id);
         user.overdraftDebt = OverdraftDebt({
             amountDue: user.overdraftDebt.amountDue + amountUSD,
-            serviceFee: _getServiceFee(amountUSD),
-            effectTime: user.overdraftDebt.effectTime == 0 ? block.timestamp : user.overdraftDebt.effectTime + 7 days,
-            dueTime: user.overdraftDebt.dueTime == 0 ? block.timestamp + 30 days : user.overdraftDebt.dueTime + 7 days,
+            serviceFee: user.overdraftDebt.principal == 0
+                ? _getServiceFee(amountUSD)
+                : _getServiceFee(user.overdraftDebt.principal + amountUSD),
+            effectTime: user.overdraftDebt.effectTime == 0 ? requestedAt : user.overdraftDebt.effectTime + 7 days,
+            dueTime: user.overdraftDebt.dueTime == 0 ? requestedAt + 30 days : user.overdraftDebt.dueTime + 7 days,
+            principal: user.overdraftDebt.principal + amountUSD,
             state: Status.Good
         });
         //Update User
@@ -119,6 +125,8 @@ contract ClixpesaOverdraft is ReentrancyGuard {
 
         emit OverdraftUsed(id, userAddress, amount, token, amount);
     }
+
+    function repayOverdraft(address userAddress, address token, uint256 tokenAmount) external view {}
 
     function subscribeUser(address user, uint256 initialLimit, string memory key) external {
         if (user == address(0)) revert OD_InvalidUser();
@@ -132,7 +140,14 @@ contract ClixpesaOverdraft is ReentrancyGuard {
             lastReviewTime: subscribedAt,
             nextReviewTime: subscribedAt + 60 days,
             overdraftIds: new bytes6[](0),
-            overdraftDebt: OverdraftDebt({amountDue: 0, serviceFee: 0, effectTime: 0, dueTime: 0, state: Status.Good}),
+            overdraftDebt: OverdraftDebt({
+                amountDue: 0,
+                serviceFee: 0,
+                effectTime: 0,
+                dueTime: 0,
+                principal: 0,
+                state: Status.Good
+            }),
             suspendedUntil: 0
         });
         emit UserSubscribed(user, initialLimit, subscribedAt);
@@ -146,10 +161,21 @@ contract ClixpesaOverdraft is ReentrancyGuard {
         delete users[user];
         emit UserUnsubscribed(user, block.timestamp);
     }
+
+    /**
+     * @dev TODO: Update user debt based on fees daily
+     *  for now just update when another with offline check
+     */
+    function updateUserDebt(address userAddress) external {
+        //Simplistic does not check on overdue times yet.
+        User storage user = users[userAddress];
+        uint256 amountDue = user.overdraftDebt.amountDue;
+        user.overdraftDebt.amountDue = amountDue + user.overdraftDebt.serviceFee;
+    }
+
     ///// Public Functions          /////
     ///// Getters                   /////
-
-    function getOverdraftById(bytes32 id) public view returns (Overdraft memory) {
+    function getOverdraftById(bytes6 id) public view returns (Overdraft memory) {
         return overdrafts[id];
     }
 
@@ -183,5 +209,13 @@ contract ClixpesaOverdraft is ReentrancyGuard {
         }
     }
 
-    function _getServiceFee(uint256 amount) internal view returns (uint256) {}
+    function _getServiceFee(uint256 amount) internal pure returns (uint256 fee) {
+        //ToDo: Impliment fees based in amount tiers
+        if (amount < 2e18) return 0;
+        if (amount < 5e18) return 0.2e17;
+        if (amount < 10e18) return 0.8e17;
+        if (amount < 20e18) return 0.15e18;
+        if (amount < 50e18) return 0.25e18;
+        return 0.5e6; // 50-100
+    }
 }

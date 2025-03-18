@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.25;
 
-import {Test} from "forge-std/Test.sol";
-import {CLXP_Overdraft} from "../src/Overdraft.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {ClixpesaOverdraft} from "../src/Overdraft.sol";
 import {DeployOverdraft} from "../script/DeployOverdraft.s.sol";
 import {HelperConfig} from "../script/HelperConfig.s.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 //import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract TestOverdraft is Test {
-    CLXP_Overdraft overdraft;
+    ClixpesaOverdraft overdraft;
     DeployOverdraft deployer;
     HelperConfig config;
 
@@ -29,52 +29,65 @@ contract TestOverdraft is Test {
         deployer = new DeployOverdraft();
         (overdraft, config) = deployer.run();
         (,, mUSD, mKES) = config.activeNetworkConfig();
-
+        console.log(mUSD);
         ERC20Mock(mUSD).mint(address(overdraft), PSTARTING_USD_BAL);
         ERC20Mock(mKES).mint(address(overdraft), PSTARTING_KES_BAL);
     }
     ///// Setup Tests             /////
 
     function testContractStartingBalances() public view {
-        (uint256 mUSDbal, uint256 mKESbal) = overdraft.getPoolBalance();
+        (, uint256 mUSDbal, uint256 mKESbal) = overdraft.getPoolBalance();
         assertEq(mUSDbal, PSTARTING_USD_BAL);
         assertEq(mKESbal, PSTARTING_KES_BAL);
     }
 
     function testUserIsSubscribedWithDefaults() public {
         vm.prank(user);
-        overdraft.subscribeUser(user, 0);
-        CLXP_Overdraft.User memory thisUser = overdraft.getUser(user);
+        overdraft.subscribeUser(user, 0, "CPODTest");
+        ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
         assertEq(thisUser.overdraftLimit, INITIAL_LIMIT);
         vm.stopPrank();
     }
 
     function testUserIsSubscribedWithLimit() public {
         vm.prank(user);
-        overdraft.subscribeUser(user, 10e18);
-        CLXP_Overdraft.User memory thisUser = overdraft.getUser(user);
+        overdraft.subscribeUser(user, 10e18, "CPODTest");
+        ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
         assert(thisUser.overdraftLimit > INITIAL_LIMIT);
         vm.stopPrank();
     }
 
     function testUserIsSubscribedWithVeryHighLimit() public {
         vm.prank(user);
-        overdraft.subscribeUser(user, 1000e18);
-        CLXP_Overdraft.User memory thisUser = overdraft.getUser(user);
+        overdraft.subscribeUser(user, 1000e18, "CPODTest");
+        ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
         assertEq(thisUser.overdraftLimit, MAX_LIMIT);
         vm.stopPrank();
     }
 
     function testUserRequestsShouldUpdateOverdraft() public {
         vm.prank(user);
-        overdraft.subscribeUser(user, 50e18);
-        CLXP_Overdraft.User memory thisUser = overdraft.getUser(user);
-        uint256 availabeLimit = thisUser.availableLimit - USER_REQUEST_1;
-        overdraft.requestOverdraft(user, mUSD, USER_REQUEST_1);
-        CLXP_Overdraft.User memory updatedUser = overdraft.getUser(user);
-        CLXP_Overdraft.Overdraft memory thisOverdraft = overdraft.getOverdraftById(updatedUser.overdraftIds[0]);
-        assertEq(updatedUser.availableLimit, availabeLimit, "Available limit not chnaged");
-        assertEq(thisOverdraft.principal, USER_REQUEST_1, "Principal Not corret");
+        overdraft.subscribeUser(user, 50e18, "CPODTest");
+        ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
+        uint256 newAvailableLimit = thisUser.availableLimit - USER_REQUEST_1;
+        overdraft.useOverdraft(user, mUSD, USER_REQUEST_1);
+        ClixpesaOverdraft.User memory updatedUser = overdraft.getUser(user);
+        ClixpesaOverdraft.Overdraft memory thisOverdraft = overdraft.getOverdraftById(updatedUser.overdraftIds[0]);
+        assertEq(updatedUser.availableLimit, newAvailableLimit, "Available limit not chnaged");
+        assertEq(updatedUser.overdraftDebt.amountDue, USER_REQUEST_1, "Wrong USD Value");
+        assertEq(thisOverdraft.tokenAmount, USER_REQUEST_1, "Principal Not corret");
         vm.stopPrank();
+    }
+
+    function testDailyFeeIsApplied() public {
+        vm.prank(user);
+        overdraft.subscribeUser(user, 50e18, "CPODTest");
+        overdraft.useOverdraft(user, mUSD, USER_REQUEST_1);
+        vm.stopPrank();
+        ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
+        uint256 amountDueNow = thisUser.overdraftDebt.amountDue;
+        overdraft.updateUserDebt(user);
+        thisUser = overdraft.getUser(user);
+        assert(amountDueNow < thisUser.overdraftDebt.amountDue);
     }
 }

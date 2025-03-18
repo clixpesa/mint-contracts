@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.25;
 
 import {Script} from "forge-std/Script.sol";
-import {CLXP_Overdraft} from "../src/Overdraft.sol";
+import {ClixpesaOverdraft} from "../src/Overdraft.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
 
 contract DeployOverdraft is Script {
     address[] public supportedTokens;
 
-    function run() external returns (CLXP_Overdraft, HelperConfig) {
+    function run() external returns (ClixpesaOverdraft, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
         (
             ,
@@ -20,7 +19,7 @@ contract DeployOverdraft is Script {
 
         supportedTokens = [usdStable, localStable];
         vm.startBroadcast(vm.envUint("DEV_KEY"));
-        CLXP_Overdraft overdraft = new CLXP_Overdraft(supportedTokens);
+        ClixpesaOverdraft overdraft = new ClixpesaOverdraft(supportedTokens, "CPODTest");
         vm.stopBroadcast();
         return (overdraft, helperConfig);
     }
