@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.25;
 
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GenerateId} from "./libraries/GenerateId.sol";
-import {console} from "forge-std/console.sol";
 
-contract ClixpesaOverdraft is ReentrancyGuard {
+contract ClixpesaOverdraft is Initializable, ReentrancyGuard, UUPSUpgradeable {
     ///// Errors                    /////
     error OD_InvalidToken();
     error OD_InvalidKey();
@@ -77,8 +78,17 @@ contract ClixpesaOverdraft is ReentrancyGuard {
         }
         _;
     }
-
+    /*
     constructor(address[] memory _supportedTokens, string memory _key) {
+        supportedTokens = _supportedTokens;
+        subscriptionKey = keccak256(abi.encodePacked(_key));
+    }*/
+
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address[] memory _supportedTokens, string memory _key) public initializer {
         supportedTokens = _supportedTokens;
         subscriptionKey = keccak256(abi.encodePacked(_key));
     }
@@ -86,7 +96,6 @@ contract ClixpesaOverdraft is ReentrancyGuard {
     ///// External Functions        /////
     function useOverdraft(address userAddress, address token, uint256 amount) external {
         User storage user = users[userAddress];
-        console.log(supportedTokens[0], token);
         if (user.overdraftLimit == 0) revert OD_NotSubscribed();
         if (supportedTokens[0] != token && supportedTokens[1] != token) revert OD_InvalidToken();
         if (amount == 0) revert OD_MustMoreBeThanZero();
@@ -121,7 +130,7 @@ contract ClixpesaOverdraft is ReentrancyGuard {
         require(IERC20(token).transfer(userAddress, amount), "Tranfer failed");
         users[userAddress] = user;
 
-        emit OverdraftUsed(userAddress, amount, token, amount);
+        emit OverdraftUsed(userAddress, amountUSD, token, amount);
     }
 
     function repayOverdraft(address userAddress, address token, uint256 amount) external {
@@ -260,5 +269,9 @@ contract ClixpesaOverdraft is ReentrancyGuard {
         if (amount < 20e18) return 0.15e18;
         if (amount < 50e18) return 0.25e18;
         return 0.5e6; // 50-100
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal pure override {
+        (newImplementation);
     }
 }

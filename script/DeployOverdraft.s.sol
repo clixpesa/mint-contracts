@@ -4,6 +4,7 @@ pragma solidity ^0.8.25;
 import {Script} from "forge-std/Script.sol";
 import {ClixpesaOverdraft} from "../src/Overdraft.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract DeployOverdraft is Script {
     address[] public supportedTokens;
@@ -19,7 +20,12 @@ contract DeployOverdraft is Script {
 
         supportedTokens = [usdStable, localStable];
         vm.startBroadcast(vm.envUint("DEV_KEY"));
-        ClixpesaOverdraft overdraft = new ClixpesaOverdraft(supportedTokens, "CPODTest");
+        ClixpesaOverdraft overdraftImplementation = new ClixpesaOverdraft();
+        ERC1967Proxy overdraftProxy = new ERC1967Proxy(
+            address(overdraftImplementation),
+            abi.encodeCall(ClixpesaOverdraft.initialize, (supportedTokens, "CPODTest"))
+        );
+        ClixpesaOverdraft overdraft = ClixpesaOverdraft(address(overdraftProxy));
         vm.stopBroadcast();
         return (overdraft, helperConfig);
     }
