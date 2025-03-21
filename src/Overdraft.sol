@@ -213,6 +213,7 @@ contract ClixpesaOverdraft is Initializable, ReentrancyGuard, UUPSUpgradeable {
         //Simplistic does not check on overdue times yet.
         User storage user = users[userAddress];
         uint256 amountDue = user.overdraftDebt.amountDue;
+        require(amountDue > 0, "No debt");
         user.overdraftDebt.amountDue = amountDue + user.overdraftDebt.serviceFee;
     }
 
