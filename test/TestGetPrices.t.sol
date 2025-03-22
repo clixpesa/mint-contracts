@@ -2,13 +2,13 @@
 pragma solidity ^0.8.20;
 
 import {Test, console} from "forge-std/Test.sol";
-import "@uniswap/contracts/interfaces/IUniswapV3Pool.sol";
-import "@uniswap/contracts/libraries/TickMath.sol";
-import "@uniswap/contracts/libraries/FixedPoint96.sol";
-import "@uniswap/contracts/libraries/FullMath.sol";
-import {DeployOverdraft} from "../script/DeployOverdraft.s.sol";
-import {ClixpesaOverdraft} from "../src/Overdraft.sol";
-import {HelperConfig} from "../script/HelperConfig.s.sol";
+import "../src/external-deps/uniswapV3/IUniswapV3Pool.sol";
+import "../src/libraries/TickMath.sol";
+import "../src/libraries/FixedPoint96.sol";
+import "../src/libraries/FullMath.sol";
+import "../src/Overdraft.sol";
+import "../script/HelperConfig.s.sol";
+import "../script/DeployOverdraft.s.sol";
 
 contract TestGetPrices is Test {
     ClixpesaOverdraft overdraft;

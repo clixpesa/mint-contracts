@@ -5,12 +5,11 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@uniswap/contracts/interfaces/IUniswapV3Pool.sol";
-import "@uniswap/contracts/libraries/FixedPoint96.sol";
-
-import {GenerateId} from "./libraries/GenerateId.sol";
-import {TickMath} from "./libraries/TickMath.sol";
-import {FullMath} from "./libraries/FullMath.sol";
+import "./external-deps/uniswapV3/IUniswapV3Pool.sol";
+import "./libraries/GenerateId.sol";
+import "./libraries/FixedPoint96.sol";
+import "./libraries/TickMath.sol";
+import "./libraries/FullMath.sol";
 
 contract ClixpesaOverdraft is Initializable, ReentrancyGuard, UUPSUpgradeable {
     ///// Errors                    /////
