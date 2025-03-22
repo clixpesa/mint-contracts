@@ -35,7 +35,7 @@ jobs:
       - name: Run Forge tests
         env:
           DEV_KEY: ${{ secrets.DEV_KEY }}
-          VERIFIER_KEY: ${{ secrets.VERIFIER_KEY}}
+          VERIFIER_KEY: ${{ secrets.VERIFIER_KEY }}
           ACC_1: ${{ secrets.ACC_1 }}
           ACC_2: ${{ secrets.ACC_2 }}
         run: |
