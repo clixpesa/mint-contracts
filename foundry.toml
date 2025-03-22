@@ -5,6 +5,7 @@ libs = ["lib"]
 remappings = [
   '@openzeppelin/contracts=lib/openzeppelin-contracts/contracts',
   '@account-abstraction/contracts=lib/account-abstraction/contracts',
+  '@uniswap/contracts=lib/v3-core/contracts',
 ]
 
 [profile.default.fuzz]

@@ -12,7 +12,7 @@ import {Overdraft} from "../src/OverdraftTrial.sol";
 contract DeploySmartAccount is Script {
     function run() external returns (SmartAccount, HelperConfig, Overdraft) {
         HelperConfig helperConfig = new HelperConfig();
-        (address entryPoint,, address usdStable,) = helperConfig.activeNetworkConfig();
+        (address entryPoint,, address usdStable,,,) = helperConfig.activeNetworkConfig();
 
         vm.broadcast(vm.envUint("DEV_KEY"));
         Overdraft overdraft = new Overdraft(usdStable);

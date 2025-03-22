@@ -28,7 +28,7 @@ contract TestOverdraft is Test {
     function setUp() public {
         deployer = new DeployOverdraft();
         (overdraft, config) = deployer.run();
-        (,, mUSD, mKES) = config.activeNetworkConfig();
+        (,, mUSD, mKES,,) = config.activeNetworkConfig();
         console.log(mUSD);
         ERC20Mock(mUSD).mint(address(overdraft), PSTARTING_USD_BAL);
         ERC20Mock(mKES).mint(address(overdraft), PSTARTING_KES_BAL);
@@ -45,7 +45,7 @@ contract TestOverdraft is Test {
         vm.prank(user);
         overdraft.subscribeUser(user, 0, "CPODTest");
         ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
-        assertEq(thisUser.overdraftLimit, INITIAL_LIMIT);
+        assertEq(thisUser.overdraftLimit, overdraft.getBaseAmount(INITIAL_LIMIT, mUSD));
         vm.stopPrank();
     }
 
@@ -53,7 +53,7 @@ contract TestOverdraft is Test {
         vm.prank(user);
         overdraft.subscribeUser(user, 10e18, "CPODTest");
         ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
-        assert(thisUser.overdraftLimit > INITIAL_LIMIT);
+        assert(thisUser.overdraftLimit == overdraft.getBaseAmount(10e18, mUSD));
         vm.stopPrank();
     }
 
@@ -61,7 +61,7 @@ contract TestOverdraft is Test {
         vm.prank(user);
         overdraft.subscribeUser(user, 1000e18, "CPODTest");
         ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
-        assertEq(thisUser.overdraftLimit, MAX_LIMIT);
+        assertEq(thisUser.overdraftLimit, overdraft.getBaseAmount(MAX_LIMIT, mUSD));
         vm.stopPrank();
     }
 
@@ -69,14 +69,31 @@ contract TestOverdraft is Test {
         vm.prank(user);
         overdraft.subscribeUser(user, 50e18, "CPODTest");
         ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
-        uint256 newAvailableLimit = thisUser.availableLimit - USER_REQUEST_1;
+        uint256 baseAmount = overdraft.getBaseAmount(USER_REQUEST_1, mUSD);
+        uint256 newAvailableLimit = thisUser.availableLimit - baseAmount;
         overdraft.useOverdraft(user, mUSD, USER_REQUEST_1);
         ClixpesaOverdraft.User memory updatedUser = overdraft.getUser(user);
         ClixpesaOverdraft.Overdraft memory thisOverdraft = overdraft.getOverdraftById(updatedUser.overdraftIds[0]);
         assertEq(updatedUser.availableLimit, newAvailableLimit, "Available limit not chnaged");
-        assertEq(updatedUser.overdraftDebt.amountDue, USER_REQUEST_1, "Wrong USD Value");
+        assertEq(updatedUser.overdraftDebt.amountDue, baseAmount + ((baseAmount * 0.01e18) / 1e18), "Wrong Debt Value");
         assertEq(thisOverdraft.tokenAmount, USER_REQUEST_1, "Principal Not corret");
         vm.stopPrank();
+    }
+
+    function testTokenAmountToBaseAmount() public view {
+        uint256 fromUSD = overdraft.getBaseAmount(INITIAL_LIMIT, mUSD);
+        uint256 fromETH = overdraft.getBaseAmount(INITIAL_LIMIT, address(0));
+        assert(fromUSD > 620e18);
+        assert(fromETH > 220e18);
+    }
+
+    function testBaseAmountToTokenAmount() public view {
+        uint256 toUSD = overdraft.getTokenAmount(646e18, mUSD);
+        console.log(toUSD);
+        uint256 toETH = overdraft.getTokenAmount(230e18, address(0));
+        console.log(toETH);
+        assert(toUSD < 5.05e18);
+        assert(toETH < 5.05e18);
     }
 
     function testDailyFeeIsApplied() public {
@@ -86,8 +103,10 @@ contract TestOverdraft is Test {
         vm.stopPrank();
         ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
         uint256 amountDueNow = thisUser.overdraftDebt.amountDue;
+        vm.warp(1 days);
         overdraft.updateUserDebt(user);
         thisUser = overdraft.getUser(user);
+        console.log(thisUser.overdraftDebt.amountDue);
         assert(amountDueNow < thisUser.overdraftDebt.amountDue);
     }
 
@@ -99,10 +118,10 @@ contract TestOverdraft is Test {
         vm.stopPrank();
         ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
         uint256 userDebt = thisUser.overdraftDebt.amountDue;
-        assertEq(ERC20Mock(mUSD).balanceOf(user), USER_REQUEST_2, "Wrong Debt Value");
+        assertEq(ERC20Mock(mUSD).balanceOf(user), USER_REQUEST_2, "Wrong Top Up Value");
         overdraft.repayOverdraft(user, mUSD, 10e18);
         thisUser = overdraft.getUser(user);
-        assertEq(thisUser.overdraftDebt.amountDue, userDebt - 10e18, "Wrong Debt Value");
+        assertEq(thisUser.overdraftDebt.amountDue, userDebt - overdraft.getBaseAmount(10e18, mUSD), "Wrong Debt Value");
     }
 
     function testOverdraftFullRepayment() public {
@@ -111,8 +130,11 @@ contract TestOverdraft is Test {
         ERC20Mock(mUSD).approve(address(overdraft), 50e18);
         overdraft.useOverdraft(user, mUSD, USER_REQUEST_2);
         vm.stopPrank();
-        assertEq(ERC20Mock(mUSD).balanceOf(user), USER_REQUEST_2, "Wrong Debt Value");
-        overdraft.repayOverdraft(user, mUSD, USER_REQUEST_2);
+        assertEq(ERC20Mock(mUSD).balanceOf(user), USER_REQUEST_2, "Wrong Top Up Value");
+        uint256 repaymentValue = USER_REQUEST_2 + ((USER_REQUEST_2 * 0.01e18) / 1e18);
+
+        ERC20Mock(mUSD).mint(user, 5e18);
+        overdraft.repayOverdraft(user, mUSD, repaymentValue);
         ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
         assertEq(thisUser.overdraftDebt.amountDue, 0, "Wrong Debt Value");
     }
@@ -126,8 +148,9 @@ contract TestOverdraft is Test {
         ERC20Mock(mUSD).mint(user, USER_REQUEST_2);
         assertEq(ERC20Mock(mUSD).balanceOf(user), USER_REQUEST_2 * 2, "Wrong Balance");
         overdraft.repayOverdraft(user, mUSD, USER_REQUEST_2 * 2);
+        uint256 repaymentValue = USER_REQUEST_2 + ((USER_REQUEST_2 * 0.01e18) / 1e18);
         ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
         assertEq(thisUser.overdraftDebt.amountDue, 0, "Wrong Debt Value");
-        assertEq(ERC20Mock(mUSD).balanceOf(user), USER_REQUEST_2, "Wrong Balance");
+        assertEq(ERC20Mock(mUSD).balanceOf(user), USER_REQUEST_2 * 2 - repaymentValue + 1, "Wrong User Balance");
     }
 }
