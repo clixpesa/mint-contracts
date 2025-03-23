@@ -1,13 +1,13 @@
 import "dotenv/config";
 import { mnemonicToAccount, generateMnemonic, english } from "viem/accounts"
 import { setMnemonic, getMnemonic, setSmartAccount } from "./server";
-import { Address, createPublicClient, getContract, http, parseEther } from "viem"
+import { Address, createPublicClient, getContract, http, parseEther, formatUnits } from "viem"
 import { celo, celoAlfajores } from "viem/chains"
 import { createSmartAccountClient } from "permissionless"
 import { toSimpleSmartAccount } from "permissionless/accounts"
 import { createPimlicoClient } from "permissionless/clients/pimlico"
 import { stableTokenAbi } from "../contracts/ABIs/stableTokenABI";
-import { subscribeToOverdraft } from "../contracts/Overdraft";
+import { getOverdraftDebt } from "../contracts/overdraft";
 
 const apiKey = process.env.PIMLICO_API_KEY
 const thirdwebApiKey = process.env.THIRDWEB_API_KEY
@@ -17,12 +17,12 @@ const entryPoint07Address = '0x0000000071727De22E5E9d8BAf0edAc6f37da032' as cons
 if (!apiKey) throw new Error("Missing PIMLICO_API_KEY")
 if (!thirdwebApiKey) throw new Error("Missing THIRDWEB_API_KEY")
 
-const publicClient = createPublicClient({
+export const publicClient = createPublicClient({
     chain: celoAlfajores,
     transport: http(`https://44787.rpc.thirdweb.com/${thirdwebApiKey}`),
   });
   
-const pimlicoClient = createPimlicoClient({
+export const pimlicoClient = createPimlicoClient({
     entryPoint: {
       address: entryPoint07Address,
       version: "0.7",
@@ -108,21 +108,3 @@ export async function transferToken(params: {account: any, to: Address, amount: 
   }
 
 }
-
-/*
-export async function sendTxWithOverdraft() {
-
-}*/
-
-(async () => {
-  //await generateAndStoreMnemonic("user00001")
-  const account = await initializeAccount("user00001")
-  
-  const tx = await subscribeToOverdraft({
-    account,
-    userAddress: account.account.address,
-    initialLimit: "50",
-  })
-  
-  console.log(tx)
-})()
