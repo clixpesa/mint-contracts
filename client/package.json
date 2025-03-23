@@ -1,7 +1,7 @@
 {
   "name": "mint-client",
   "version": "1.0.0",
-  "description": "Test contracts",
+  "description": "Test contracts and integration",
   "main": "index.ts",
   "author": "@kachdekan",
   "license": "Apache-2.0",
@@ -10,7 +10,9 @@
     "start": "tsx index.ts"
   },
   "dependencies": {
+    "axios": "^1.8.4",
     "dotenv": "^16.4.7",
+    "json-server": "^1.0.0-beta.3",
     "permissionless": "^0.2.36",
     "viem": "^2.23.10"
   },

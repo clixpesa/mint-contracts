@@ -26,9 +26,9 @@ import {
 } from "viem/account-abstraction"
 import { getChainId, signMessage } from "viem/actions"
 import { getAction } from "viem/utils"
-import { getAccountNonce } from "./utils/getAccountNonce"
-import { getSenderAddress} from "./utils/getSenderAddress"
-import { type EthereumProvider, toOwner } from "./utils/toOwner"
+import { getAccountNonce } from "../utils/getAccountNonce"
+import { getSenderAddress} from "../utils/getSenderAddress"
+import { type EthereumProvider, toOwner } from "../utils/toOwner"
 
 /*
  * This converts LocalAccount (EOA) to a SmartAccount.
@@ -58,9 +58,7 @@ export type ClixpesaSmartAccountImplementation = Assign<
         sign: NonNullable<SmartAccountImplementation["sign"]>
     }>
 
-export type ToClixpesaSmartAccountReturnType<
-    
-> = SmartAccount<ClixpesaSmartAccountImplementation>
+export type ToClixpesaSmartAccountReturnType<> = SmartAccount<ClixpesaSmartAccountImplementation>
 
 enum SignatureType {
     EOA = "0x00"
@@ -186,7 +184,7 @@ export async function toClixpesaSmartAccount(
         entryPoint,
         getFactoryArgs,
 
-        async getAddress(){
+        async getAddress(): Promise<Address> { 
             if (accountAddress) return accountAddress
 
             const { factory, factoryData } = await getFactoryArgs()
@@ -376,7 +374,7 @@ export async function toClixpesaSmartAccount(
         async sign({ hash }) {
             return this.signMessage({ message: hash })
         },
-        signMessage: async ({ message }) => {
+        async signMessage ({ message }){
             const signature = await signWith1271WrapperV1(
                 localOwner,
                 await getMemoizedChainId(),
@@ -386,7 +384,7 @@ export async function toClixpesaSmartAccount(
 
             return concat([SignatureType.EOA, signature])
         },
-        signTypedData: async (typedData) => {
+        async signTypedData (typedData){
             const signature = await signWith1271WrapperV1(
                 localOwner,
                 await getMemoizedChainId(),
