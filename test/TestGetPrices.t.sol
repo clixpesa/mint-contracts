@@ -6,7 +6,7 @@ import "../src/external-deps/uniswapV3/IUniswapV3Pool.sol";
 import "../src/libraries/TickMath.sol";
 import "../src/libraries/FixedPoint96.sol";
 import "../src/libraries/FullMath.sol";
-import "../src/Overdraft.sol";
+import "../src/overdraft/Overdraft.sol";
 import "../script/HelperConfig.s.sol";
 import "../script/DeployOverdraft.s.sol";
 
