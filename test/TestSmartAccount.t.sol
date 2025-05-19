@@ -2,7 +2,7 @@
 pragma solidity ^0.8.25;
 
 import {Test, console} from "forge-std/Test.sol";
-import {SmartAccount} from "../src/SmartAccount.sol";
+import {SmartAccount} from "../src/account/SmartAccount.sol";
 import {DeploySmartAccount} from "../script/DeploySmartAccount.s.sol";
 import {HelperConfig} from "../script/HelperConfig.s.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";

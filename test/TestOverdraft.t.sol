@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.25;
+pragma solidity 0.8.25;
 
 import {Test, console} from "forge-std/Test.sol";
-import {ClixpesaOverdraft} from "../src/Overdraft.sol";
+import {ClixpesaOverdraft} from "../src/overdraft/Overdraft.sol";
 import {DeployOverdraft} from "../script/DeployOverdraft.s.sol";
 import {HelperConfig} from "../script/HelperConfig.s.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";

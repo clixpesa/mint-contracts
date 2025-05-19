@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.25;
+pragma solidity 0.8.25;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./external-deps/uniswapV3/IUniswapV3Pool.sol";
-import "./libraries/GenerateId.sol";
-import "./libraries/FixedPoint96.sol";
-import "./libraries/TickMath.sol";
-import "./libraries/FullMath.sol";
+import "../externals/uniswapV3/IUniswapV3Pool.sol";
+import "../libraries/GenerateId.sol";
+import "../libraries/FixedPoint96.sol";
+import "../libraries/TickMath.sol";
+import "../libraries/FullMath.sol";
 
 contract ClixpesaOverdraft is Initializable, ReentrancyGuard, UUPSUpgradeable {
     ///// Errors                    /////
