@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../externals/uniswapV3/IUniswapV3Pool.sol";
 import "../libraries/GenerateId.sol";
@@ -11,7 +12,7 @@ import "../libraries/FixedPoint96.sol";
 import "../libraries/TickMath.sol";
 import "../libraries/FullMath.sol";
 
-contract ClixpesaOverdraft is Initializable, ReentrancyGuard, UUPSUpgradeable {
+contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
     ///// Errors                    /////
     error OD_InvalidToken();
     error OD_InvalidKey();
@@ -97,10 +98,14 @@ contract ClixpesaOverdraft is Initializable, ReentrancyGuard, UUPSUpgradeable {
         _disableInitializers();
     }
 
-    function initialize(address[] memory _supportedTokens, address[] memory _uniswapV3Pools, string memory _key)
-        public
-        initializer
-    {
+    function initialize(
+        //address initialOwner,
+        address[] memory _supportedTokens,
+        address[] memory _uniswapV3Pools,
+        string memory _key
+    ) public initializer {
+        __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
         supportedTokens = _supportedTokens;
         uniswapPools = _uniswapV3Pools;
         subscriptionKey = keccak256(abi.encodePacked(_key));
@@ -331,7 +336,11 @@ contract ClixpesaOverdraft is Initializable, ReentrancyGuard, UUPSUpgradeable {
         return _getBaseAmount(0.35e18, supportedTokens[0]); //50 - 100
     }
 
-    function _authorizeUpgrade(address newImplementation) internal pure override {
-        (newImplementation);
+    // Override transferOwnership to also manage roles
+    function transferOwnership(address newOwner) public override onlyOwner {
+        // Transfer ownership
+        super.transferOwnership(newOwner);
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }

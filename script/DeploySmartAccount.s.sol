@@ -4,10 +4,10 @@ pragma solidity ^0.8.25;
 
 import {Script} from "forge-std/Script.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
-import {SmartAccountFactory} from "../src/SmartAccountFactory.sol";
-import {SmartAccount} from "../src/SmartAccount.sol";
+import {SmartAccountFactory} from "../src/account/SmartAccountFactory.sol";
+import {SmartAccount} from "../src/account/SmartAccount.sol";
 import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
-import {Overdraft} from "../src/OverdraftTrial.sol";
+import {Overdraft} from "../src/mocks/MockOverdraft.sol";
 
 contract DeploySmartAccount is Script {
     function run() external returns (SmartAccount, HelperConfig, Overdraft) {

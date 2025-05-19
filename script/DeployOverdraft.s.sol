@@ -2,7 +2,7 @@
 pragma solidity ^0.8.25;
 
 import {Script} from "forge-std/Script.sol";
-import {ClixpesaOverdraft} from "../src/Overdraft.sol";
+import {ClixpesaOverdraft} from "../src/overdraft/Overdraft.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 

@@ -9,8 +9,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 
 import {DevOpsTools} from "lib/foundry-devops/src/DevOpsTools.sol";
-import {SmartAccount} from "../src/SmartAccount.sol";
-import {Paymaster} from "../src/Paymaster.sol";
+import {SmartAccount} from "../src/account/SmartAccount.sol";
+import {Paymaster} from "../src/account/Paymaster.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
 import {Script, console} from "forge-std/Script.sol";
 

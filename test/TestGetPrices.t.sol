@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Test, console} from "forge-std/Test.sol";
-import "../src/external-deps/uniswapV3/IUniswapV3Pool.sol";
+import "../src/externals/uniswapV3/IUniswapV3Pool.sol";
 import "../src/libraries/TickMath.sol";
 import "../src/libraries/FixedPoint96.sol";
 import "../src/libraries/FullMath.sol";
