@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "./IRoscas.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-contract ClixpesaRoscas is Initializable, Ownable, AccessControl, ReentrancyGuard, UUPSUpgradeable {
+contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     using EnumerableSet for EnumerableSet.AddressSet;
     using SafeERC20 for IERC20;
 
@@ -90,16 +89,15 @@ contract ClixpesaRoscas is Initializable, Ownable, AccessControl, ReentrancyGuar
         _disableInitializers();
     }
 
-    function initialize(address initialOwner) public initializer {
-        Ownable(initialOwner);
+    function initialize(address defaultAdmin) public initializer {
+        __Ownable_init(defaultAdmin);
         __AccessControl_init();
-        __ReentrancyGuard_init();
         __UUPSUpgradeable_init();
 
         // Setup roles
-        _grantRole(DEFAULT_ADMIN_ROLE, initialOwner);
-        _grantRole(ADMIN_ROLE, initialOwner);
-        _grantRole(UPGRADER_ROLE, initialOwner);
+        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
+        _grantRole(ADMIN_ROLE, defaultAdmin);
+        _grantRole(UPGRADER_ROLE, defaultAdmin);
 
         // Initialize reentrancy status
         status = _NOT_ENTERED;
@@ -487,7 +485,7 @@ contract ClixpesaRoscas is Initializable, Ownable, AccessControl, ReentrancyGuar
         blockedAddresses[_address] = _blocked;
     }
 
-    function sendTokens(address _tokenAddress, address _to, uint256 _amount) external onlyOwner {
+    function sendTokens(address _tokenAddress, address _to, uint256 _amount) external onlyRole(ADMIN_ROLE) {
         IERC20 token = IERC20(_tokenAddress);
         token.safeTransfer(_to, _amount);
     }
@@ -704,8 +702,4 @@ contract ClixpesaRoscas is Initializable, Ownable, AccessControl, ReentrancyGuar
         if (paused == _status) revert NoChange();
         paused = !paused;
     }
-
-    /*function emptyRoscaSavingsPool(uint256 _roscaId) public onlyRole(ADMIN_ROLE) {
-        roscaSavingsPools[_roscaId] = 0;
-    }*/
 }
