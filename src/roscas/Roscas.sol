@@ -32,7 +32,6 @@ contract ClixpesaRoscas is Initializable, Ownable, AccessControl, ReentrancyGuar
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
-    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     bytes32 public constant MEMBER_ROLE = keccak256("MEMBER_ROLE");
     bytes32 public constant ROSCA_ADMIN_ROLE = keccak256("ROSCA_ADMIN_ROLE");
     bytes32 public constant ROSCA_MEMBER_ROLE = keccak256("ROSCA_MEMBERS_ROLE");
@@ -54,7 +53,7 @@ contract ClixpesaRoscas is Initializable, Ownable, AccessControl, ReentrancyGuar
     event MemberAdded(uint256 indexed roscaId, address indexed member);
     event MemberRemoved(uint256 indexed roscaId, address indexed member);
 
-    event ManagerChanged(uint256 indexed roscaId, address indexed oldAdmin, address indexed newAdmin);
+    event AdminChanged(uint256 indexed roscaId, address indexed oldAdmin, address indexed newAdmin);
     event MemberRegistered(address indexed member);
     event MemberUnregistered(address indexed member);
     event RoscaLoanRequested(
@@ -92,16 +91,15 @@ contract ClixpesaRoscas is Initializable, Ownable, AccessControl, ReentrancyGuar
     }
 
     function initialize(address initialOwner) public initializer {
-        __Ownable_init(initialOwner);
+        Ownable(initialOwner);
         __AccessControl_init();
         __ReentrancyGuard_init();
         __UUPSUpgradeable_init();
 
         // Setup roles
-        _setupRole(DEFAULT_ADMIN_ROLE, initialOwner);
-        _setupRole(ADMIN_ROLE, initialOwner);
-        _setupRole(UPGRADER_ROLE, initialOwner);
-        _setupRole(MANAGER_ROLE, initialOwner);
+        _grantRole(DEFAULT_ADMIN_ROLE, initialOwner);
+        _grantRole(ADMIN_ROLE, initialOwner);
+        _grantRole(UPGRADER_ROLE, initialOwner);
 
         // Initialize reentrancy status
         status = _NOT_ENTERED;
@@ -122,7 +120,7 @@ contract ClixpesaRoscas is Initializable, Ownable, AccessControl, ReentrancyGuar
     }
 
     modifier onlyCAdminOrRAdmin() {
-        if (!hasRole(ROSCA_ADMIN_ROLE, msg.sender) && !hasRole(ADMIN_ROLE, msg.sender)) revert NotManager();
+        if (!hasRole(ROSCA_ADMIN_ROLE, msg.sender) && !hasRole(ADMIN_ROLE, msg.sender)) revert NotAdmin();
         _;
     }
 
@@ -132,7 +130,6 @@ contract ClixpesaRoscas is Initializable, Ownable, AccessControl, ReentrancyGuar
     ROSCA MANAGEMENT
     _________________________________________________________________________________________________
     */
-
     function createRosca(address _admin, address _tokenAddress, bool noSignOffRequired)
         public
         screening
@@ -153,7 +150,7 @@ contract ClixpesaRoscas is Initializable, Ownable, AccessControl, ReentrancyGuar
         emit RoscaCreated(roscaId, _admin, _tokenAddress, noSignOffRequired);
     }
 
-    function joinRosca(address[] memory _members, uint256 _roscaId) public screening onlyCAdminOrRAdmin {
+    function joinRosca(address[] memory _members, uint256 _roscaId) public screening {
         uint256 roscaId;
         if (hasRole(ADMIN_ROLE, msg.sender)) {
             roscaId = _roscaId;
@@ -192,6 +189,251 @@ contract ClixpesaRoscas is Initializable, Ownable, AccessControl, ReentrancyGuar
         emit MemberRemoved(_roscaId, msg.sender);
     }
 
+    /*
+    _________________________________________________________________________________________________
+    
+    LOAN BOOK MANAGEMENT
+    _________________________________________________________________________________________________
+    */
+
+    function requestLoan(
+        uint256 _requestedAmount,
+        uint256 _interestAmount,
+        uint256 _tenor,
+        Frequency _frequency,
+        uint8 _numberOfInstallments,
+        address _token,
+        uint256 _roscaId,
+        address _borrower
+    ) public screening {
+        address borrower;
+        if (_borrower != address(0)) {
+            if (!hasRole(ADMIN_ROLE, msg.sender)) revert NotAdmin();
+            borrower = _borrower;
+        } else {
+            borrower = msg.sender;
+        }
+
+        if (_roscaId != 0) {
+            if (!hasRole(ROSCA_MEMBER_ROLE, borrower)) revert NotRoscaMember();
+        } else {
+            if (!hasRole(MEMBER_ROLE, borrower)) revert NotRegistered();
+        }
+
+        performLoanValidityChecks();
+
+        if (_numberOfInstallments < 1) revert InvalidNumberOfInstallments();
+        uint256 userLoanId = loansToUser[borrower]++;
+
+        LoanRequest storage loanRequest = loanRequests[borrower][userLoanId];
+
+        loanRequest.roscaId = _roscaId != 0 ? userOnRosca[borrower] : 0;
+        loanRequest.borrower = borrower;
+        loanRequest.requestId = userLoanId;
+        loanRequest.requestedAmount = _requestedAmount;
+        loanRequest.interestAmount = _interestAmount;
+        loanRequest.tenor = _tenor;
+        loanRequest.status = Status.Requested;
+        loanRequest.frequency = _frequency;
+        loanRequest.numberOfInstallments = _numberOfInstallments;
+        loanRequest.installmentAmount = (_requestedAmount + _interestAmount) / _numberOfInstallments;
+        loanRequest.token = _token;
+
+        userLoanStatus[borrower] = true;
+
+        emit LoanApplied(
+            borrower,
+            _roscaId != 0 ? userOnRosca[borrower] : 0, // roscaId is 0 for individual loans
+            userLoanId,
+            _requestedAmount,
+            _token,
+            _tenor,
+            loanRequest.status,
+            _frequency,
+            loanRequest.installmentAmount,
+            _numberOfInstallments
+        );
+
+        // Check if no sign-off is required for this rosca
+        if (_roscaId != 0 && noSignOffRoscas[_roscaId]) {
+            loanRequest.status = Status.Signed;
+            emit LoanStatusUpdated(borrower, userLoanId, Status.Signed, userOnRosca[borrower]);
+        }
+    }
+
+    function signOffLoanRequest(address _member, uint256 _requestId) public screening onlyRole(ROSCA_SIGNATORY_ROLE) {
+        if (!hasRole(MEMBER_ROLE, _member)) revert NotRegistered();
+        LoanRequest storage loanRequest = loanRequests[_member][_requestId];
+        if (loanRequest.status != Status.Requested) revert NotRequested();
+        if (userOnRosca[msg.sender] != loanRequest.roscaId) {
+            revert NotSignatory();
+        }
+        if (loanRequest.signatories.length == 2) revert LoanSignedOff();
+        if (_addressExists(loanRequest.signatories, msg.sender)) {
+            revert Signed();
+        }
+        loanRequest.signatories.push(msg.sender);
+
+        if (loanRequest.signatories.length == 2) {
+            loanRequest.status = Status.Signed;
+            emit LoanStatusUpdated(_member, _requestId, Status.Signed, userOnRosca[_member]);
+        }
+    }
+
+    function approveLoan(address _member, uint256 _requestId, uint256 _roscaId) public screening nonReentrant {
+        if (_roscaId != 0) {
+            _roscaOpenCheck(_roscaId);
+            if (!hasRole(ROSCA_ADMIN_ROLE, msg.sender)) revert NotAdmin();
+        } else {
+            if (!hasRole(ADMIN_ROLE, msg.sender)) revert NotAdmin();
+        }
+
+        LoanRequest storage loanRequest = loanRequests[_member][_requestId];
+
+        if (_roscaId != 0) {
+            if (loanRequest.status != Status.Signed) revert NotSigned();
+            if (roscas[loanRequest.roscaId].admin != msg.sender) {
+                revert NotAdmin();
+            }
+        } else {
+            if (loanRequest.status != Status.Requested) revert NotRequested();
+        }
+
+        checkFunds(loanRequest);
+
+        if (_roscaId != 0) {
+            roscaLoanPools[loanRequest.roscaId] -= loanRequest.requestedAmount;
+        }
+
+        IERC20(loanRequest.token).transfer(_member, loanRequest.requestedAmount);
+
+        Loan storage loan = loans[_member][_requestId];
+        loan.borrower = _member;
+        loan.id = _requestId;
+        loan.roscaId = loanRequest.roscaId;
+        loan.principalAmount = loanRequest.requestedAmount;
+        loan.interestAmount = loanRequest.interestAmount;
+        loan.repaidAmount = 0;
+        loan.lastRepaymentDate = 0;
+        loan.disbursedDate = block.timestamp;
+        loan.maturityDate = block.timestamp + loanRequest.tenor;
+        loan.tenor = loanRequest.tenor;
+        loan.status = Status.Active;
+        loan.frequency = loanRequest.frequency;
+        loan.token = loanRequest.token;
+        loan.numberOfInstallments = loanRequest.numberOfInstallments;
+        loan.installmentAmount = loanRequest.installmentAmount;
+        loan.dueDate = loan.disbursedDate + loanRequest.tenor * 1 days;
+
+        emit LoanApproved(_member, _requestId, loanRequest.requestedAmount, loanRequest.tenor, loanRequest.roscaId);
+    }
+
+    function rejectLoan(address _member, uint256 _requestId, uint256 _roscaId) public screening {
+        if (_roscaId != 0) {
+            if (!hasRole(ROSCA_ADMIN_ROLE, msg.sender)) revert NotAdmin();
+        } else {
+            if (!hasRole(ADMIN_ROLE, msg.sender)) revert NotAdmin();
+        }
+
+        LoanRequest storage loanRequest = loanRequests[_member][_requestId];
+        loanRequest.status = Status.Rejected;
+        userLoanStatus[_member] = false;
+        emit LoanRejected(_member, _requestId, loanRequest.requestedAmount, loanRequest.tenor, loanRequest.roscaId);
+    }
+
+    function repayLoan(uint256 _requestId, uint256 _amount, uint256 _roscaId, address borrower)
+        public
+        screening
+        nonReentrant
+    {
+        if (_roscaId != 0) {
+            if (!hasRole(ROSCA_MEMBER_ROLE, borrower)) revert NotRoscaMember();
+        } else {
+            if (!hasRole(MEMBER_ROLE, borrower)) revert NotRegistered();
+        }
+
+        Loan storage loan = loans[borrower][_requestId];
+        if (loan.status != Status.Active) revert NotActive();
+
+        IERC20(loan.token).transferFrom(msg.sender, address(this), _amount);
+
+        loan.repaidAmount += _amount;
+        loan.lastRepaymentDate = block.timestamp;
+
+        if (loan.repaidAmount < (loan.principalAmount + loan.interestAmount)) {
+            emit LoanPartiallyRepaid(loan.roscaId, borrower, _requestId, _amount);
+        }
+
+        if (loan.repaidAmount >= (loan.principalAmount + loan.interestAmount)) {
+            if (loan.dueDate + 30 days >= loan.lastRepaymentDate) {
+                emit LoanRepaid(loan.roscaId, loan.borrower, loan.id, loan.repaidAmount);
+                loan.status = Status.Repaid;
+            } else {
+                loan.status = Status.PaidLate;
+                emit LoanStatusUpdated(borrower, _requestId, Status.PaidLate, loan.roscaId);
+            }
+            userLoanStatus[borrower] = false;
+        }
+    }
+
+    /*
+    _________________________________________________________________________________________________
+    
+    ADMIN FUNCTIONS
+    _________________________________________________________________________________________________
+    */
+
+    //Rosca management actions
+
+    function registerMembers(address[] calldata _members) external screening onlyCAdminOrRAdmin {
+        //uint256 totalCost = _members.length * 0.15 ether; // Calculate the total required CELO
+
+        // Ensure the contract has enough CELO to cover the transfers
+        // require(address(this).balance >= totalCost, "Contract doesn't have enough CELO");
+
+        for (uint256 i = 0; i < _members.length; i++) {
+            registeredMembers[_members[i]] = true;
+            grantRole(MEMBER_ROLE, _members[i]);
+
+            /* Send CELO to the new member
+            (bool success,) = payable(_members[i]).call{value: 0.15 ether}("");
+            require(success, "Failed to seed CELO");*/
+
+            emit MemberRegistered(_members[i]);
+        }
+    }
+
+    function unregisterMember(address _member) external screening onlyCAdminOrRAdmin {
+        registeredMembers[_member] = false;
+        revokeRole(MEMBER_ROLE, _member);
+        emit MemberUnregistered(_member);
+    }
+
+    function addMembers(address[] memory _members, uint256 _roscaId) public screening onlyCAdminOrRAdmin {
+        uint256 roscaId;
+        if (hasRole(ADMIN_ROLE, msg.sender)) {
+            roscaId = _roscaId;
+        } else {
+            roscaId = userOnRosca[msg.sender];
+            assert(msg.sender == roscas[roscaId].admin);
+        }
+
+        _roscaOpenCheck(roscaId);
+
+        for (uint256 i = 0; i < _members.length;) {
+            if (!hasRole(MEMBER_ROLE, _members[i])) revert NotRegistered();
+            if (userOnRosca[_members[i]] != 0) revert AlreadyInRosca();
+            Rosca storage rosca = roscas[roscaId];
+            rosca.members.add(_members[i]);
+            _grantRole(ROSCA_MEMBER_ROLE, _members[i]);
+            userOnRosca[_members[i]] = roscaId;
+            emit MemberAdded(roscaId, _members[i]);
+            unchecked {
+                i++;
+            }
+        }
+    }
+
     function removeMembers(address[] memory _members) public screening onlyCAdminOrRAdmin {
         uint256 _roscaId = userOnRosca[msg.sender];
         _roscaOpenCheck(_roscaId);
@@ -213,19 +455,6 @@ contract ClixpesaRoscas is Initializable, Ownable, AccessControl, ReentrancyGuar
         }
     }
 
-    /*
-    _________________________________________________________________________________________________
-    
-    LOAN BOOK MANAGEMENT
-    _________________________________________________________________________________________________
-    */
-
-    /*
-    _________________________________________________________________________________________________
-    
-    ADMIN FUNCTIONS
-    _________________________________________________________________________________________________
-    */
     function changeAdmin(uint256 _roscaId, address _newAdmin) external onlyRole(ADMIN_ROLE) {
         if (!hasRole(MEMBER_ROLE, _newAdmin)) revert NotRegistered();
         if (!roscas[_roscaId].isOpen) revert Closed();
@@ -241,7 +470,7 @@ contract ClixpesaRoscas is Initializable, Ownable, AccessControl, ReentrancyGuar
         _grantRole(ROSCA_ADMIN_ROLE, _newAdmin);
         _grantRole(ROSCA_SIGNATORY_ROLE, _newAdmin);
         _revokeRole(ROSCA_ADMIN_ROLE, oldAdmin);
-        emit ManagerChanged(_roscaId, oldAdmin, _newAdmin);
+        emit AdminChanged(_roscaId, oldAdmin, _newAdmin);
     }
 
     function setRoscaStatus(uint256 _roscaId, bool _isOpen) external onlyRole(ADMIN_ROLE) {
@@ -256,6 +485,161 @@ contract ClixpesaRoscas is Initializable, Ownable, AccessControl, ReentrancyGuar
 
     function blockAddress(address _address, bool _blocked) external onlyRole(ADMIN_ROLE) {
         blockedAddresses[_address] = _blocked;
+    }
+
+    function sendTokens(address _tokenAddress, address _to, uint256 _amount) external onlyOwner {
+        IERC20 token = IERC20(_tokenAddress);
+        token.safeTransfer(_to, _amount);
+    }
+
+    //Loan management actions
+
+    function requestRoscaLoan(uint256 _roscaId, uint256 _requestedAmount, uint256 _tenor)
+        public
+        screening
+        onlyCAdminOrRAdmin
+    {
+        _roscaOpenCheck(_roscaId);
+        require(!hasActiveRoscaLoanRequest[_roscaId], "Rosca already has an active loan");
+        Rosca storage rosca = roscas[_roscaId];
+        if (!rosca.isOpen) revert Closed();
+        if (!hasRole(ADMIN_ROLE, msg.sender)) {
+            if (userOnRosca[msg.sender] != _roscaId) revert NotAdmin();
+        }
+        uint256 requestId = roscaLoanRequestCounter[_roscaId];
+        RoscaLoanRequest storage roscaLoanRequest = roscaLoanRequests[_roscaId][requestId];
+        roscaLoanRequest.requestId = requestId;
+        roscaLoanRequest.requestedAmount = _requestedAmount;
+        roscaLoanRequest.tenor = _tenor;
+        roscaLoanRequestCounter[_roscaId]++;
+
+        hasActiveRoscaLoanRequest[_roscaId] = true;
+        emit RoscaLoanRequested(_roscaId, requestId, _requestedAmount, _tenor, Status.Requested);
+    }
+
+    function approveRoscaLoanRequest(uint256 _roscaId, uint256 _roscaLoanId, uint256 _interestAmount)
+        public
+        onlyRole(ADMIN_ROLE)
+    {
+        uint256 requestedAmount = roscaLoanRequests[_roscaId][_roscaLoanId].requestedAmount;
+        uint256 tenor = roscaLoanRequests[_roscaId][_roscaLoanId].tenor;
+
+        roscaLoanPools[_roscaId] += requestedAmount;
+
+        RoscaLoan storage roscaLoan = roscaLoans[_roscaId][_roscaLoanId];
+        roscaLoan.id = _roscaLoanId;
+        roscaLoan.principalAmount = requestedAmount;
+        roscaLoan.interestAmount = _interestAmount;
+        roscaLoan.repaidPrincipalAmount = 0;
+        roscaLoan.repaidInterestAmount = 0;
+        roscaLoan.remainingPrincipal = requestedAmount;
+        roscaLoan.remainingInterest = _interestAmount;
+        roscaLoan.lastRepaymentDate = 0;
+        roscaLoan.disbursedDate = block.timestamp;
+        roscaLoan.maturityDate = block.timestamp + tenor;
+        roscaLoan.tenor = tenor;
+        roscaLoan.status = Status.Active;
+
+        hasActiveRoscaLoanRequest[_roscaId] = false;
+        emit RoscaLoanApproved(_roscaId, _roscaLoanId, requestedAmount);
+
+        if (noSignOffRoscas[_roscaId]) {
+            address admin = roscas[_roscaId].admin;
+            this.requestLoan(
+                requestedAmount,
+                _interestAmount,
+                tenor,
+                Frequency.Monthly,
+                1,
+                address(roscas[_roscaId].token),
+                _roscaId,
+                admin
+            );
+        }
+    }
+
+    function rejectRoscaLoanRequest(uint256 _roscaId, uint256 _roscaLoanId) public onlyRole(ADMIN_ROLE) {
+        RoscaLoanRequest storage roscaLoanRequest = roscaLoanRequests[_roscaId][_roscaLoanId];
+        roscaLoanRequest.status = Status.Rejected;
+
+        hasActiveRoscaLoanRequest[_roscaId] = false;
+
+        emit RoscaLoanRejected(_roscaId, _roscaLoanId, roscaLoanRequest.requestedAmount);
+    }
+
+    function updateLoanStatus(address _member, uint256 _requestId, Status _status) public onlyRole(ADMIN_ROLE) {
+        loans[_member][_requestId].status = _status;
+    }
+
+    function topUpRoscaLoanPool(uint256 _roscaId, uint256 _amount) public screening onlyRole(ADMIN_ROLE) {
+        if (!roscas[_roscaId].isOpen) revert Closed();
+        roscaLoanPools[_roscaId] += _amount;
+    }
+
+    function emptyRoscaLoanPool(uint256 _roscaId) public onlyRole(ADMIN_ROLE) {
+        roscaLoanPools[_roscaId] = 0;
+    }
+
+    /*
+    _________________________________________________________________________________________________
+    
+    HELPER FUNCTIONS
+    _________________________________________________________________________________________________
+    */
+    function _roscaOpenCheck(uint256 _roscaId) internal view {
+        if (!roscas[_roscaId].isOpen) revert Closed();
+    }
+
+    function _addressExists(address[] memory addresses, address _address) internal pure returns (bool) {
+        for (uint256 i = 0; i < addresses.length; i++) {
+            if (addresses[i] == _address) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function checkFunds(LoanRequest memory loanRequest) internal view {
+        // Confirm the Smart contract has enough funds
+        uint256 tokenBalance = IERC20(loanRequest.token).balanceOf(address(this));
+
+        if (loanRequest.requestedAmount > tokenBalance) {
+            revert InsufficientContractFunds();
+        }
+
+        // If rosca loan, confirm the rosca has enough funds
+        if (loanRequest.roscaId != 0 && loanRequest.requestedAmount > roscaLoanPools[loanRequest.roscaId]) {
+            revert InsufficientRoscaFunds();
+        }
+    }
+
+    function performLoanValidityChecks() internal view {
+        if (userLoanStatus[msg.sender]) revert ExistingLoan();
+    }
+
+    function getRosca(uint256 _roscaId) external view returns (address, uint256, IERC20, bool, uint256) {
+        Rosca storage rosca = roscas[_roscaId];
+        return (rosca.admin, rosca.availableFunding, rosca.token, rosca.isOpen, rosca.members.length());
+    }
+
+    function getRoscaLoanRequest(uint256 _roscaId, uint256 roscaLoanId)
+        public
+        view
+        returns (RoscaLoanRequest memory roscaLoan)
+    {
+        return roscaLoanRequests[_roscaId][roscaLoanId];
+    }
+
+    function getRoscaLoan(uint256 _roscaId, uint256 _roscaLoanId) public view returns (RoscaLoan memory roscaLoan) {
+        return roscaLoans[_roscaId][_roscaLoanId];
+    }
+
+    function getLoanRequest(address _member, uint256 _requestId) public view returns (LoanRequest memory loanRequest) {
+        return loanRequests[_member][_requestId];
+    }
+
+    function getLoan(address _member, uint256 _roscaLoanId) public view returns (Loan memory loan) {
+        return loans[_member][_roscaLoanId];
     }
 
     /*
@@ -319,14 +703,6 @@ contract ClixpesaRoscas is Initializable, Ownable, AccessControl, ReentrancyGuar
     function togglePause(bool _status) public onlyRole(ADMIN_ROLE) {
         if (paused == _status) revert NoChange();
         paused = !paused;
-    }
-
-    function updateLoanStatus(address _member, uint256 _requestId, Status _status) public onlyRole(ADMIN_ROLE) {
-        loans[userOnRosca[_member]][_requestId].status.status = _status;
-    }
-
-    function emptyRoscaLoansPool(uint256 _roscaId) public onlyRole(ADMIN_ROLE) {
-        roscaLoanPools[_roscaId] = 0;
     }
 
     /*function emptyRoscaSavingsPool(uint256 _roscaId) public onlyRole(ADMIN_ROLE) {

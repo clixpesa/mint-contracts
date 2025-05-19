@@ -13,7 +13,6 @@ error NotSignatory();
 error NotRequested();
 error Signed();
 error GuarantorNotRegistered();
-error NotManager();
 error NotApproved();
 error NotActive();
 error InvalidAmount();
