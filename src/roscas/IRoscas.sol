@@ -1,16 +1,46 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+error NotRoscaMember();
+error NotRegistered();
+error Closed();
+error NoChange();
+error NotAdmin();
+error NotSignatory();
+error NotRequested();
+error Signed();
+error GuarantorNotRegistered();
+error NotManager();
+error NotApproved();
+error NotActive();
+error InvalidAmount();
+error ExistingLoan();
+error InvalidFrequency();
+error ContractPaused();
+error Reentrant();
+error Blocked();
+error LoanSignedOff();
+error InvalidNumberOfInstallments();
+error InsufficientRoscaFunds();
+error InsufficientContractFunds();
+error GuarantorCannotBeBorrower();
+error AlreadyInRosca();
+error NotSigned();
+
 enum Status {
-    PENDING,
-    APPROVED, //By Admins
-    SIGNED, //By Signatories
-    REJECTED,
-    ACTIVE,
-    PAID,
-    GRACE_PERIOD,
-    PAID_LATE,
-    DEFAULTED
+    Requested,
+    Rejected,
+    Signed,
+    Approved,
+    Active,
+    Repaid,
+    GracePeriod,
+    Defaulted,
+    PaidLate,
+    Transitioned
 }
 
 enum Frequency {
@@ -19,65 +49,69 @@ enum Frequency {
     Monthly
 }
 
-// Errors
-error Blocked();
-error ContractPaused();
-error Reentrant();
-error NotManager();
-error NotRegistered();
-error NotRoscaMember();
-error NoChange();
-error RoscaNotActive();
-error AlreadyMember();
-error NotEnoughFunds();
-error InvalidContribution();
-error CircleNotCompleted();
-error AlreadyPaidForCircle();
-error LoanNotApproved(); //by Admins
-error LoanNotSigned(); //by signatories
-error LoanAlreadyProcessed();
-error InvalidLoanRequest();
-error NotLoanBorrower();
-error InsufficientVotes();
-error InvalidRosca();
-error InvalidCycle();
-error InvalidAmount();
-error InsufficientCircleFunds();
-error InsufficientRoscaFunds();
-error InsufficientContractFunds();
-
-// ROSCA structures
 struct Rosca {
-    uint256 id;
-    string name;
+    EnumerableSet.AddressSet members;
     address admin;
-    uint256 contributionAmount;
-    uint256 cycleDuration; // in seconds
-    uint256 startTime;
-    uint256 currentCycle;
-    uint256 totalCycles;
-    address contributionToken;
-    bool isActive;
-    uint256 savingsPool;
-    uint256 loanPool;
+    bool isOpen;
+    IERC20 token;
+    uint256 availableFunding;
+    mapping(address => LoanRequest[]) loanRequests;
+    mapping(address => uint256) loansToUser;
 }
 
-struct Member {
-    address wallet;
-    uint256 joinedAt;
-    bool isActive;
-    uint256 totalContributions;
-    uint256 totalWithdrawals;
-    uint256 lastCyclePaid;
+struct RoscaLoanRequest {
+    uint256 requestId;
+    uint256 requestedAmount;
+    uint256 tenor;
+    Status status;
+}
+
+struct RoscaLoan {
+    uint256 id;
+    uint256 principalAmount;
+    uint256 interestAmount;
+    uint256 repaidPrincipalAmount;
+    uint256 repaidInterestAmount;
+    uint256 remainingPrincipal;
+    uint256 remainingInterest;
+    uint256 lastRepaymentDate;
+    uint256 disbursedDate;
+    uint256 maturityDate;
+    uint256 tenor;
+    Status status;
 }
 
 struct LoanRequest {
-    uint256 amount;
-    uint256 interestRate;
-    uint256 duration;
-    uint256 cycleRequested;
-    Status status;
+    address token;
     address borrower;
-    uint256 votesFor;
-    uint256 votesAgainst;
+    uint256 roscaId;
+    uint256 requestId;
+    uint256 requestedAmount;
+    uint256 interestAmount;
+    uint256 tenor;
+    Status status;
+    Frequency frequency;
+    uint256 installmentAmount;
+    uint8 numberOfInstallments;
+    address[] signatories;
+}
+
+struct Loan {
+    uint256 id;
+    uint256 roscaId;
+    address borrower;
+    address token;
+    uint256 principalAmount;
+    uint256 interestAmount;
+    uint256 repaidAmount;
+    address[] guarantors;
+    uint256 lastRepaymentDate;
+    uint256 disbursedDate;
+    uint256 maturityDate;
+    Frequency frequency;
+    uint256 installmentAmount;
+    uint8 numberOfInstallments;
+    uint256 tenor;
+    Status status;
+    uint256 dueDate;
 }
