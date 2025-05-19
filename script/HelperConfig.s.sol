@@ -5,7 +5,7 @@ pragma solidity ^0.8.25;
 import {Script} from "forge-std/Script.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {EntryPoint} from "@account-abstraction/contracts/core/EntryPoint.sol";
-import {Paymaster} from "../src/Paymaster.sol";
+import {Paymaster} from "../src/account/Paymaster.sol";
 import {MockUniswapV3Pool} from "../src/mocks/MockUniswapV3Pool.sol";
 
 contract HelperConfig is Script {
