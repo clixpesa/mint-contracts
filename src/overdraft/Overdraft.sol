@@ -68,6 +68,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     uint256 private constant MAX_LIMIT = 100e18; //Initial overdraft limit in USD
     uint256 private constant S_FACTOR = 1e18; //Arithmetic scale factor
     uint256 private constant FEE_FACTOR = 995e15; //0.5% fee
+    uint256 private constant TIME_TOLERANCE = 900;
 
     address[] private supportedTokens; //[usd, local]
     address[] private uniswapPools; //Used to derive token prices (UniswapV3)
@@ -263,6 +264,13 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
         if (amountDue == 0) revert OD_MustMoreBeThanZero();
         if (user.overdraftDebt.lastChecked + 1 days - 1 > block.timestamp) revert OD_CheckedEarly();
         user.overdraftDebt.amountDue = amountDue + user.overdraftDebt.serviceFee;
+        if (_isOverdue(user.overdraftDebt.dueTime)) {
+            if (_isDefaulted(user.overdraftDebt.dueTime)) {
+                user.overdraftDebt.state = Status.Defaulted;
+            } else {
+                user.overdraftDebt.state = Status.Grace;
+            }
+        }
     }
 
     /*
@@ -385,6 +393,14 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
         if (amount < 20e18) return _getBaseAmount(0.15e18, supportedTokens[0]);
         if (amount < 50e18) return _getBaseAmount(0.23e18, supportedTokens[0]);
         return _getBaseAmount(0.35e18, supportedTokens[0]); //50 - 100
+    }
+
+    function _isOverdue(uint256 dueTime) internal view returns (bool) {
+        return block.timestamp > dueTime + TIME_TOLERANCE;
+    }
+
+    function _isDefaulted(uint256 dueTime) internal view returns (bool) {
+        return block.timestamp > dueTime + 30 days + TIME_TOLERANCE;
     }
 
     // Override transferOwnership to also manage roles
