@@ -82,6 +82,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     event UserUnsubscribed(address indexed user, uint256 time);
     event OverdraftUsed(address indexed user, uint256 indexed baseAmount, address token, uint256 tokenAmount);
     event OverdraftPaid(address indexed user, uint256 indexed baseAmount, address token, uint256 tokenAmount);
+    event Withdrawal(address indexed recipient, uint256 amount, address token);
 
     ///// Modifiers                 /////
     modifier moreThanZero(uint256 _amount) {
@@ -253,6 +254,18 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     */
     function setDelegate(address _delegate) external onlyOwner {
         delegates[_delegate] = true;
+    }
+
+    function withdraw(address recipient, address token, uint256 amount) external onlyOwner nonReentrant {
+        require(recipient != address(0), "Invalid recipient");
+        if (supportedTokens[0] != token && supportedTokens[1] != token) revert OD_InvalidToken();
+        if (amount <= 0) revert OD_MustMoreBeThanZero();
+
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        if (amount > balance) revert OD_InsufficientBalance();
+        require(IERC20(token).transfer(recipient, amount), "Withdrawal Failed");
+
+        emit Withdrawal(recipient, amount, token);
     }
 
     ///// Public Functions          /////
