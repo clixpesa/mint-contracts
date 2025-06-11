@@ -6,6 +6,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../externals/uniswapV3/IUniswapV3Pool.sol";
 import "../libraries/GenerateId.sol";
 import "../libraries/FixedPoint96.sol";
@@ -13,6 +14,8 @@ import "../libraries/TickMath.sol";
 import "../libraries/FullMath.sol";
 
 contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
+    using SafeERC20 for IERC20;
+
     ///// Errors                    /////
     error OD_InvalidToken();
     error OD_InvalidKey();
@@ -175,7 +178,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
         });
         //Update User
         users[msg.sender] = user;
-        require(IERC20(token).transfer(msg.sender, amount), "Tranfer failed");
+        IERC20(token).safeTransfer(msg.sender, amount);
 
         emit OverdraftUsed(msg.sender, baseAmount, token, amount);
     }
@@ -194,11 +197,11 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
         if (baseAmount > user.overdraftDebt.amountDue) {
             //get equivalent token amount of actual amount due.
             uint256 tokenAmount = _getTokenAmount(user.overdraftDebt.amountDue, token);
-            require(IERC20(token).transferFrom(userAddress, address(this), tokenAmount), "Repayment Failed");
+            IERC20(token).safeTransferFrom(userAddress, address(this), tokenAmount);
             user.overdraftDebt.amountDue = 0; //since the token will be enough to cover full debt
             emit OverdraftPaid(userAddress, user.overdraftDebt.amountDue, token, tokenAmount);
         } else {
-            require(IERC20(token).transferFrom(userAddress, address(this), amount), "Repayment Failed");
+            IERC20(token).safeTransferFrom(userAddress, address(this), amount);
             user.overdraftDebt.amountDue = user.overdraftDebt.amountDue - baseAmount;
             emit OverdraftPaid(userAddress, baseAmount, token, amount);
         }
@@ -292,7 +295,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
 
         uint256 balance = IERC20(token).balanceOf(address(this));
         if (amount > balance) revert OD_InsufficientBalance();
-        require(IERC20(token).transfer(recipient, amount), "Withdrawal Failed");
+        IERC20(token).safeTransfer(recipient, amount);
 
         emit Withdrawal(recipient, amount, token);
     }
