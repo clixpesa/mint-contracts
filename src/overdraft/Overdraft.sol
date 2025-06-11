@@ -91,6 +91,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     event UserUnsubscribed(address indexed user, uint256 time);
     event OverdraftUsed(address indexed user, uint256 indexed baseAmount, address token, uint256 tokenAmount);
     event OverdraftPaid(address indexed user, uint256 indexed baseAmount, address token, uint256 tokenAmount);
+    event OverdraftUpdated(address indexed user, uint256 newAmount, Status newStatus);
     event Withdrawal(address indexed recipient, uint256 amount, address token);
 
     ///// Modifiers                 /////
@@ -279,6 +280,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
                 user.overdraftDebt.state = Status.Grace;
             }
         }
+        emit OverdraftUpdated(userAddress, user.overdraftDebt.amountDue, user.overdraftDebt.state);
     }
 
     /*

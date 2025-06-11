@@ -84,6 +84,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
         uint8 numberOfInstallments
     );
     event ContractUpgraded(address newImplementation);
+    event AddressBlocked(address indexed blockedAddress, bool blocked);
 
     //Rest of code will go here
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -486,6 +487,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
 
     function blockAddress(address _address, bool _blocked) external onlyRole(ADMIN_ROLE) {
         blockedAddresses[_address] = _blocked;
+        emit AddressBlocked(_address, _blocked);
     }
 
     function sendTokens(address _tokenAddress, address _to, uint256 _amount) external onlyRole(ADMIN_ROLE) {
