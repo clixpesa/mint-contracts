@@ -218,7 +218,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
             if (!hasRole(MEMBER_ROLE, borrower)) revert NotRegistered();
         }
 
-        performLoanValidityChecks();
+        performLoanValidityChecks(borrower);
 
         if (_numberOfInstallments < 1) revert InvalidNumberOfInstallments();
         uint256 userLoanId = loansToUser[borrower]++;
@@ -611,8 +611,8 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
         }
     }
 
-    function performLoanValidityChecks() internal view {
-        if (userLoanStatus[msg.sender]) revert ExistingLoan();
+    function performLoanValidityChecks(address borrower) internal view {
+        if (userLoanStatus[borrower]) revert ExistingLoan();
     }
 
     function getRosca(uint256 _roscaId) external view returns (address, uint256, IERC20, bool, uint256) {

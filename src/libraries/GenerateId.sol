@@ -23,7 +23,7 @@ library GenerateId {
     /**
      * @notice Returns a unique id with an address as prefix
      */
-    function withAddressNCounter(address user, uint128 count) internal pure returns (bytes8 id) {
-        id = bytes8(keccak256(abi.encodePacked(user, count)));
+    function withAddressNCounter(address user, uint128 count) internal view returns (bytes8 id) {
+        id = bytes8(keccak256(abi.encodePacked(user, count, block.timestamp)));
     }
 }
