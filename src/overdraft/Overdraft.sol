@@ -67,6 +67,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     uint256 private constant INITIAL_LIMIT = 5e18; //Initial overdraft limit in USD
     uint256 private constant MAX_LIMIT = 100e18; //Initial overdraft limit in USD
     uint256 private constant S_FACTOR = 1e18; //Arithmetic scale factor
+    uint256 private constant FEE_FACTOR = 995e15; //0.5% fee
 
     address[] private supportedTokens; //[usd, local]
     address[] private uniswapPools; //Used to derive token prices (UniswapV3)
@@ -314,11 +315,11 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
             return amount * 1; //Probably add ChainLink feed for proper stable value
         } else if (token == supportedTokens[0]) {
             uint256 rate = _getRate(uniswapPools[0]);
-            return (amount * 0.995e18 / rate * S_FACTOR) / S_FACTOR;
+            return (amount * FEE_FACTOR) / rate;
         } else {
             //native token
             uint256 rate = _getRate(uniswapPools[1]);
-            return (amount * 0.995e18 / rate * S_FACTOR) / S_FACTOR;
+            return (amount * FEE_FACTOR) / rate;
         }
     }
 
@@ -328,11 +329,11 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
             return amount * 1;
         } else if (token == supportedTokens[0]) {
             uint256 rate = _getRate(uniswapPools[0]);
-            return ((amount * rate) / 0.995e18); //Adjusted S_FACTOR
+            return ((amount * rate) / FEE_FACTOR);
         } else {
             //native token
             uint256 rate = _getRate(uniswapPools[1]);
-            return ((amount * rate) / 0.995e18); //Adjusted S_FACTOR
+            return ((amount * rate) / FEE_FACTOR);
         }
     }
 
