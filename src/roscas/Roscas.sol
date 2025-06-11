@@ -158,7 +158,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
             roscaId = _roscaId;
         } else {
             roscaId = userOnRosca[msg.sender];
-            assert(msg.sender == roscas[roscaId].admin);
+            if (msg.sender != roscas[roscaId].admin) revert NotAdmin();
         }
 
         _roscaOpenCheck(roscaId);
@@ -417,7 +417,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
             roscaId = _roscaId;
         } else {
             roscaId = userOnRosca[msg.sender];
-            assert(msg.sender == roscas[roscaId].admin);
+            if (msg.sender != roscas[roscaId].admin) revert NotAdmin();
         }
 
         _roscaOpenCheck(roscaId);
@@ -439,7 +439,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
     function removeMembers(address[] memory _members) public screening onlyCAdminOrRAdmin {
         uint256 _roscaId = userOnRosca[msg.sender];
         _roscaOpenCheck(_roscaId);
-        assert(msg.sender == roscas[_roscaId].admin);
+        if (msg.sender != roscas[_roscaId].admin) revert NotAdmin();
         for (uint256 i = 0; i < _members.length;) {
             if (userOnRosca[_members[i]] != _roscaId) revert NotRoscaMember();
             if (userLoanStatus[_members[i]]) revert ExistingLoan();
