@@ -69,6 +69,9 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     uint256 private constant S_FACTOR = 1e18; //Arithmetic scale factor
     uint256 private constant FEE_FACTOR = 995e15; //0.5% fee
     uint256 private constant TIME_TOLERANCE = 900;
+    uint256 private constant EXTENSION_TIME = 7 days;
+    uint256 private constant STANDARD_TERM = 30 days;
+    uint256 private constant REVIEW_PERIOD = 60 days;
 
     address[] private supportedTokens; //[usd, local]
     address[] private uniswapPools; //Used to derive token prices (UniswapV3)
@@ -162,8 +165,10 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
             serviceFee: user.overdraftDebt.principal == 0
                 ? _getServiceFee(baseAmount)
                 : _getServiceFee(user.overdraftDebt.principal + baseAmount),
-            effectTime: user.overdraftDebt.effectTime == 0 ? requestedAt : user.overdraftDebt.effectTime + 7 days,
-            dueTime: user.overdraftDebt.dueTime == 0 ? requestedAt + 30 days : user.overdraftDebt.dueTime + 7 days,
+            effectTime: user.overdraftDebt.effectTime == 0 ? requestedAt : user.overdraftDebt.effectTime + EXTENSION_TIME,
+            dueTime: user.overdraftDebt.dueTime == 0
+                ? requestedAt + STANDARD_TERM
+                : user.overdraftDebt.dueTime + EXTENSION_TIME,
             principal: user.overdraftDebt.principal + baseAmount,
             lastChecked: requestedAt,
             state: Status.Good
@@ -228,7 +233,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
             overdraftLimit: limitInBaseCurrency,
             availableLimit: limitInBaseCurrency,
             lastReviewTime: subscribedAt,
-            nextReviewTime: subscribedAt + 60 days,
+            nextReviewTime: subscribedAt + REVIEW_PERIOD,
             overdraftIds: new bytes6[](0),
             overdraftDebt: OverdraftDebt({
                 amountDue: 0,
@@ -400,7 +405,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     }
 
     function _isDefaulted(uint256 dueTime) internal view returns (bool) {
-        return block.timestamp > dueTime + 30 days + TIME_TOLERANCE;
+        return block.timestamp > dueTime + STANDARD_TERM + TIME_TOLERANCE;
     }
 
     // Override transferOwnership to also manage roles
