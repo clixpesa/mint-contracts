@@ -325,7 +325,15 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
 
     function _getRate(address uniswapPool) internal view returns (uint256 rate) {
         IUniswapV3Pool localUSDPool = IUniswapV3Pool(uniswapPool);
-        (uint160 sqrtPriceX96,,,,,,) = localUSDPool.slot0();
+        uint32 twapInterval = 750; //12+min TWAP
+        uint32[] memory secondsAgo = new uint32[](2);
+        secondsAgo[0] = twapInterval;
+        secondsAgo[1] = 0;
+        (int56[] memory tickCumulatives,) = localUSDPool.observe(secondsAgo);
+        int56 tickCumulativesDelta = tickCumulatives[1] - tickCumulatives[0];
+        int24 timeWeightedAverageTick = int24(tickCumulativesDelta / int56(uint56(twapInterval)));
+        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(timeWeightedAverageTick);
+        //(uint160 sqrtPriceX96,,,,,,) = localUSDPool.slot0();
         uint256 price =
             FullMath.mulDiv(uint256(sqrtPriceX96) * S_FACTOR, uint256(sqrtPriceX96), FixedPoint96.Q96 * S_FACTOR);
         return price * S_FACTOR / FixedPoint96.Q96;
