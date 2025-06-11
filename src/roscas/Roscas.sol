@@ -39,12 +39,14 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
     uint256 private constant _NOT_ENTERED = 1;
     uint256 private constant _ENTERED = 2;
 
+    uint256 private constant MAX_BATCH_SIZE = 10;
+
     // State variables
     bool public paused;
     mapping(address => bool) public blockedAddresses;
     uint256 private status; // For reentrancy guard
 
-    uint256[75] private __gap;
+    uint256[74] private __gap;
 
     event RoscaCreated(uint256 indexed roscaId, address indexed admin, address tokenAddress, bool noSignOff);
     event RoscaClosed(uint256 indexed roscaId);
@@ -149,6 +151,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
     }
 
     function joinRosca(address[] memory _members, uint256 _roscaId) public screening {
+        require(_members.length <= MAX_BATCH_SIZE, "Batch too large");
         uint256 roscaId;
         if (hasRole(ADMIN_ROLE, msg.sender)) {
             roscaId = _roscaId;
