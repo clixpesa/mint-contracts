@@ -25,6 +25,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     error OD_InvalidUser();
     error OD_NotSubscribed();
     error OD_CheckedEarly();
+    error OD_Unauthorized();
 
     ///// Structs                   /////
     enum Status {
@@ -74,6 +75,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     //mapping(address => bool) private poolTokens;
     mapping(address => User) private users;
     mapping(bytes6 id => Overdraft) private overdrafts;
+    mapping(address => bool) private delegates; //Authorized to act on behalf of user
 
     ///// Events                    /////
     event UserSubscribed(address indexed user, uint256 indexed limit, uint256 time);
@@ -112,8 +114,8 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     }
 
     ///// External Functions        /////
-    function useOverdraft(address userAddress, address token, uint256 amount) external {
-        User storage user = users[userAddress];
+    function useOverdraft(address token, uint256 amount) external nonReentrant {
+        User storage user = users[msg.sender];
         if (user.overdraftLimit == 0) revert OD_NotSubscribed();
         if (supportedTokens[0] != token && supportedTokens[1] != token) revert OD_InvalidToken();
         if (amount == 0) revert OD_MustMoreBeThanZero();
@@ -123,12 +125,12 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
 
         uint256 accessFee = _getAccessFee(baseAmount); //1% of overdrawn base amount
 
-        bytes6 id = GenerateId.withAddressNCounter(userAddress, ++idCounter);
+        bytes6 id = GenerateId.withAddressNCounter(msg.sender, ++idCounter);
         uint256 requestedAt = block.timestamp;
 
         Overdraft memory overdraft = Overdraft({
             token: IERC20(token),
-            userAddress: payable(userAddress),
+            userAddress: payable(msg.sender),
             tokenAmount: amount,
             baseAmount: baseAmount,
             takenAt: requestedAt
@@ -149,13 +151,14 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
             state: Status.Good
         });
         //Update User
-        require(IERC20(token).transfer(userAddress, amount), "Tranfer failed");
-        users[userAddress] = user;
+        users[msg.sender] = user;
+        require(IERC20(token).transfer(msg.sender, amount), "Tranfer failed");
 
-        emit OverdraftUsed(userAddress, baseAmount, token, amount);
+        emit OverdraftUsed(msg.sender, baseAmount, token, amount);
     }
 
     function repayOverdraft(address userAddress, address token, uint256 amount) external {
+        if (msg.sender != userAddress && !delegates[msg.sender]) revert OD_Unauthorized();
         if (supportedTokens[0] != token && supportedTokens[1] != token) revert OD_InvalidToken();
         if (amount == 0) revert OD_MustMoreBeThanZero();
         if (IERC20(token).balanceOf(userAddress) < amount) revert OD_InsufficientBalance();
@@ -243,6 +246,13 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
         if (amountDue == 0) revert OD_MustMoreBeThanZero();
         if (user.overdraftDebt.lastChecked + 1 days - 1 > block.timestamp) revert OD_CheckedEarly();
         user.overdraftDebt.amountDue = amountDue + user.overdraftDebt.serviceFee;
+    }
+
+    /*
+    * set an authorized user to perform function on behalf of users
+    */
+    function setDelegate(address _delegate) external onlyOwner {
+        delegates[_delegate] = true;
     }
 
     ///// Public Functions          /////
