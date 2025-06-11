@@ -5,7 +5,7 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "../externals/uniswapV3/IUniswapV3Pool.sol";
 import "../libraries/GenerateId.sol";
 import "../libraries/FixedPoint96.sol";
@@ -77,6 +77,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     mapping(address => User) private users;
     mapping(bytes6 id => Overdraft) private overdrafts;
     mapping(address => bool) private delegates; //Authorized to act on behalf of user
+    mapping(address => uint8) public tokenDecimals;
 
     ///// Events                    /////
     event UserSubscribed(address indexed user, uint256 indexed limit, uint256 time);
@@ -122,6 +123,9 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
             }
         }
         supportedTokens = _supportedTokens;
+        tokenDecimals[_supportedTokens[0]] = IERC20Metadata(_supportedTokens[0]).decimals();
+        tokenDecimals[_supportedTokens[1]] = IERC20Metadata(_supportedTokens[1]).decimals();
+
         uniswapPools = _uniswapV3Pools;
         subscriptionKey = keccak256(abi.encodePacked(_key));
     }
@@ -322,29 +326,33 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
      */
     function _getBaseAmount(uint256 amount, address token) internal view returns (uint256 baseAmount) {
         //Todo: Impliment price check with Uniswap V3
+        uint8 decimals = tokenDecimals[token];
+        uint256 normalizedAmount = amount * 10 ** (18 - decimals);
         if (token == supportedTokens[1]) {
-            return amount * 1; //Probably add ChainLink feed for proper stable value
+            return normalizedAmount * 1; //Probably add ChainLink feed for proper stable value
         } else if (token == supportedTokens[0]) {
             uint256 rate = _getRate(uniswapPools[0]);
-            return (amount * FEE_FACTOR) / rate;
+            return (normalizedAmount * FEE_FACTOR) / rate;
         } else {
             //native token
             uint256 rate = _getRate(uniswapPools[1]);
-            return (amount * FEE_FACTOR) / rate;
+            return (normalizedAmount * FEE_FACTOR) / rate;
         }
     }
 
     function _getTokenAmount(uint256 amount, address token) internal view returns (uint256 tokenAmount) {
         //Todo: Impliment price check with Uniswap V3
+        uint8 decimals = tokenDecimals[token];
+        uint256 normalizedAmount = amount * 10 ** (18 - decimals);
         if (token == supportedTokens[1]) {
-            return amount * 1;
+            return normalizedAmount * 1;
         } else if (token == supportedTokens[0]) {
             uint256 rate = _getRate(uniswapPools[0]);
-            return ((amount * rate) / FEE_FACTOR);
+            return ((normalizedAmount * rate) / FEE_FACTOR);
         } else {
             //native token
             uint256 rate = _getRate(uniswapPools[1]);
-            return ((amount * rate) / FEE_FACTOR);
+            return ((normalizedAmount * rate) / FEE_FACTOR);
         }
     }
 
