@@ -60,7 +60,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
         uint256 availableLimit; // Maximum limit allowed for the user (USD)
         uint256 lastReviewTime;
         uint256 nextReviewTime;
-        bytes6[] overdraftIds;
+        bytes8[] overdraftIds;
         OverdraftDebt overdraftDebt;
         uint256 suspendedUntil; //0 if not suspended
     }
@@ -82,7 +82,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     uint128 private idCounter;
     //mapping(address => bool) private poolTokens;
     mapping(address => User) private users;
-    mapping(bytes6 id => Overdraft) private overdrafts;
+    mapping(bytes8 id => Overdraft) private overdrafts;
     mapping(address => bool) private delegates; //Authorized to act on behalf of user
     mapping(address => uint8) public tokenDecimals;
 
@@ -149,7 +149,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
 
         uint256 accessFee = _getAccessFee(baseAmount); //1% of overdrawn base amount
 
-        bytes6 id = GenerateId.withAddressNCounter(msg.sender, ++idCounter);
+        bytes8 id = GenerateId.withAddressNCounter(msg.sender, ++idCounter);
         uint256 requestedAt = block.timestamp;
 
         Overdraft memory overdraft = Overdraft({
@@ -237,7 +237,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
             availableLimit: limitInBaseCurrency,
             lastReviewTime: subscribedAt,
             nextReviewTime: subscribedAt + REVIEW_PERIOD,
-            overdraftIds: new bytes6[](0),
+            overdraftIds: new bytes8[](0),
             overdraftDebt: OverdraftDebt({
                 amountDue: 0,
                 serviceFee: 0,
@@ -302,13 +302,13 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
 
     ///// Public Functions          /////
     ///// Getters                   /////
-    function getOverdraftById(bytes6 id) public view returns (Overdraft memory) {
+    function getOverdraftById(bytes8 id) public view returns (Overdraft memory) {
         return overdrafts[id];
     }
 
     function getUserOverdrafts(address user) public view returns (Overdraft[] memory) {
         User storage userData = users[user];
-        bytes6[] storage ids = userData.overdraftIds;
+        bytes8[] storage ids = userData.overdraftIds;
         Overdraft[] memory results = new Overdraft[](ids.length);
         for (uint256 i = 0; i < ids.length; i++) {
             results[i] = overdrafts[ids[i]];

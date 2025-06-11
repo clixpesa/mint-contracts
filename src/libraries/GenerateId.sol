@@ -12,18 +12,18 @@ library GenerateId {
         uint256 tokenAmount; //token amount
     }
     /**
-     * @notice using bytes6 as the ID space (281 trillion) is sufficient
+     * @notice using bytes8 as the ID space is sufficient
      * @notice Returns value equal to keccak256(abi.encode(genKey))
      */
 
-    function withKey(GenKey memory genKey) internal pure returns (bytes6 id) {
-        id = bytes6(keccak256(abi.encode(genKey)));
+    function withKey(GenKey memory genKey) internal pure returns (bytes8 id) {
+        id = bytes8(keccak256(abi.encode(genKey)));
     }
 
     /**
      * @notice Returns a unique id with an address as prefix
      */
-    function withAddressNCounter(address user, uint128 count) internal pure returns (bytes6 id) {
-        id = bytes6(keccak256(abi.encodePacked(user, count)));
+    function withAddressNCounter(address user, uint128 count) internal pure returns (bytes8 id) {
+        id = bytes8(keccak256(abi.encodePacked(user, count)));
     }
 }
