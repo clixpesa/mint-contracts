@@ -110,6 +110,17 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     ) public initializer {
         __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
+
+        require(_supportedTokens.length == 2, "Invalid length");
+        require(_uniswapV3Pools.length == 2, "Invalid length");
+
+        for (uint32 i; i < 2;) {
+            require(_supportedTokens[i] != address(0), "Token cannot be zero");
+            require(_uniswapV3Pools[i] != address(0), "Pool cannot be zero");
+            unchecked {
+                ++i;
+            }
+        }
         supportedTokens = _supportedTokens;
         uniswapPools = _uniswapV3Pools;
         subscriptionKey = keccak256(abi.encodePacked(_key));
