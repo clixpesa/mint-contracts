@@ -39,12 +39,14 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
     uint256 private constant _NOT_ENTERED = 1;
     uint256 private constant _ENTERED = 2;
 
+    uint256 private constant MAX_BATCH_SIZE = 10;
+
     // State variables
     bool public paused;
     mapping(address => bool) public blockedAddresses;
     uint256 private status; // For reentrancy guard
 
-    uint256[75] private __gap;
+    uint256[74] private __gap;
 
     event RoscaCreated(uint256 indexed roscaId, address indexed admin, address tokenAddress, bool noSignOff);
     event RoscaClosed(uint256 indexed roscaId);
@@ -82,6 +84,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
         uint8 numberOfInstallments
     );
     event ContractUpgraded(address newImplementation);
+    event AddressBlocked(address indexed blockedAddress, bool blocked);
 
     //Rest of code will go here
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -149,12 +152,13 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
     }
 
     function joinRosca(address[] memory _members, uint256 _roscaId) public screening {
+        require(_members.length <= MAX_BATCH_SIZE, "Batch too large");
         uint256 roscaId;
         if (hasRole(ADMIN_ROLE, msg.sender)) {
             roscaId = _roscaId;
         } else {
             roscaId = userOnRosca[msg.sender];
-            assert(msg.sender == roscas[roscaId].admin);
+            if (msg.sender != roscas[roscaId].admin) revert NotAdmin();
         }
 
         _roscaOpenCheck(roscaId);
@@ -218,7 +222,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
             if (!hasRole(MEMBER_ROLE, borrower)) revert NotRegistered();
         }
 
-        performLoanValidityChecks();
+        performLoanValidityChecks(borrower);
 
         if (_numberOfInstallments < 1) revert InvalidNumberOfInstallments();
         uint256 userLoanId = loansToUser[borrower]++;
@@ -413,7 +417,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
             roscaId = _roscaId;
         } else {
             roscaId = userOnRosca[msg.sender];
-            assert(msg.sender == roscas[roscaId].admin);
+            if (msg.sender != roscas[roscaId].admin) revert NotAdmin();
         }
 
         _roscaOpenCheck(roscaId);
@@ -435,7 +439,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
     function removeMembers(address[] memory _members) public screening onlyCAdminOrRAdmin {
         uint256 _roscaId = userOnRosca[msg.sender];
         _roscaOpenCheck(_roscaId);
-        assert(msg.sender == roscas[_roscaId].admin);
+        if (msg.sender != roscas[_roscaId].admin) revert NotAdmin();
         for (uint256 i = 0; i < _members.length;) {
             if (userOnRosca[_members[i]] != _roscaId) revert NotRoscaMember();
             if (userLoanStatus[_members[i]]) revert ExistingLoan();
@@ -483,6 +487,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
 
     function blockAddress(address _address, bool _blocked) external onlyRole(ADMIN_ROLE) {
         blockedAddresses[_address] = _blocked;
+        emit AddressBlocked(_address, _blocked);
     }
 
     function sendTokens(address _tokenAddress, address _to, uint256 _amount) external onlyRole(ADMIN_ROLE) {
@@ -611,8 +616,8 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
         }
     }
 
-    function performLoanValidityChecks() internal view {
-        if (userLoanStatus[msg.sender]) revert ExistingLoan();
+    function performLoanValidityChecks(address borrower) internal view {
+        if (userLoanStatus[borrower]) revert ExistingLoan();
     }
 
     function getRosca(uint256 _roscaId) external view returns (address, uint256, IERC20, bool, uint256) {

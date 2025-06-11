@@ -5,7 +5,8 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../externals/uniswapV3/IUniswapV3Pool.sol";
 import "../libraries/GenerateId.sol";
 import "../libraries/FixedPoint96.sol";
@@ -13,6 +14,8 @@ import "../libraries/TickMath.sol";
 import "../libraries/FullMath.sol";
 
 contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
+    using SafeERC20 for IERC20;
+
     ///// Errors                    /////
     error OD_InvalidToken();
     error OD_InvalidKey();
@@ -25,6 +28,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     error OD_InvalidUser();
     error OD_NotSubscribed();
     error OD_CheckedEarly();
+    error OD_Unauthorized();
 
     ///// Structs                   /////
     enum Status {
@@ -56,7 +60,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
         uint256 availableLimit; // Maximum limit allowed for the user (USD)
         uint256 lastReviewTime;
         uint256 nextReviewTime;
-        bytes6[] overdraftIds;
+        bytes8[] overdraftIds;
         OverdraftDebt overdraftDebt;
         uint256 suspendedUntil; //0 if not suspended
     }
@@ -66,6 +70,11 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     uint256 private constant INITIAL_LIMIT = 5e18; //Initial overdraft limit in USD
     uint256 private constant MAX_LIMIT = 100e18; //Initial overdraft limit in USD
     uint256 private constant S_FACTOR = 1e18; //Arithmetic scale factor
+    uint256 private constant FEE_FACTOR = 995e15; //0.5% fee
+    uint256 private constant TIME_TOLERANCE = 900;
+    uint256 private constant EXTENSION_TIME = 7 days;
+    uint256 private constant STANDARD_TERM = 30 days;
+    uint256 private constant REVIEW_PERIOD = 60 days;
 
     address[] private supportedTokens; //[usd, local]
     address[] private uniswapPools; //Used to derive token prices (UniswapV3)
@@ -73,13 +82,17 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     uint128 private idCounter;
     //mapping(address => bool) private poolTokens;
     mapping(address => User) private users;
-    mapping(bytes6 id => Overdraft) private overdrafts;
+    mapping(bytes8 id => Overdraft) private overdrafts;
+    mapping(address => bool) private delegates; //Authorized to act on behalf of user
+    mapping(address => uint8) public tokenDecimals;
 
     ///// Events                    /////
     event UserSubscribed(address indexed user, uint256 indexed limit, uint256 time);
     event UserUnsubscribed(address indexed user, uint256 time);
     event OverdraftUsed(address indexed user, uint256 indexed baseAmount, address token, uint256 tokenAmount);
     event OverdraftPaid(address indexed user, uint256 indexed baseAmount, address token, uint256 tokenAmount);
+    event OverdraftUpdated(address indexed user, uint256 newAmount, Status newStatus);
+    event Withdrawal(address indexed recipient, uint256 amount, address token);
 
     ///// Modifiers                 /////
     modifier moreThanZero(uint256 _amount) {
@@ -106,14 +119,28 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
     ) public initializer {
         __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
+
+        require(_supportedTokens.length == 2, "Invalid length");
+        require(_uniswapV3Pools.length == 2, "Invalid length");
+
+        for (uint32 i; i < 2;) {
+            require(_supportedTokens[i] != address(0), "Token cannot be zero");
+            require(_uniswapV3Pools[i] != address(0), "Pool cannot be zero");
+            unchecked {
+                ++i;
+            }
+        }
         supportedTokens = _supportedTokens;
+        tokenDecimals[_supportedTokens[0]] = IERC20Metadata(_supportedTokens[0]).decimals();
+        tokenDecimals[_supportedTokens[1]] = IERC20Metadata(_supportedTokens[1]).decimals();
+
         uniswapPools = _uniswapV3Pools;
         subscriptionKey = keccak256(abi.encodePacked(_key));
     }
 
     ///// External Functions        /////
-    function useOverdraft(address userAddress, address token, uint256 amount) external {
-        User storage user = users[userAddress];
+    function useOverdraft(address token, uint256 amount) external nonReentrant {
+        User storage user = users[msg.sender];
         if (user.overdraftLimit == 0) revert OD_NotSubscribed();
         if (supportedTokens[0] != token && supportedTokens[1] != token) revert OD_InvalidToken();
         if (amount == 0) revert OD_MustMoreBeThanZero();
@@ -123,12 +150,12 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
 
         uint256 accessFee = _getAccessFee(baseAmount); //1% of overdrawn base amount
 
-        bytes6 id = GenerateId.withAddressNCounter(userAddress, ++idCounter);
+        bytes8 id = GenerateId.withAddressNCounter(msg.sender, ++idCounter);
         uint256 requestedAt = block.timestamp;
 
         Overdraft memory overdraft = Overdraft({
             token: IERC20(token),
-            userAddress: payable(userAddress),
+            userAddress: payable(msg.sender),
             tokenAmount: amount,
             baseAmount: baseAmount,
             takenAt: requestedAt
@@ -142,20 +169,23 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
             serviceFee: user.overdraftDebt.principal == 0
                 ? _getServiceFee(baseAmount)
                 : _getServiceFee(user.overdraftDebt.principal + baseAmount),
-            effectTime: user.overdraftDebt.effectTime == 0 ? requestedAt : user.overdraftDebt.effectTime + 7 days,
-            dueTime: user.overdraftDebt.dueTime == 0 ? requestedAt + 30 days : user.overdraftDebt.dueTime + 7 days,
+            effectTime: user.overdraftDebt.effectTime == 0 ? requestedAt : user.overdraftDebt.effectTime + EXTENSION_TIME,
+            dueTime: user.overdraftDebt.dueTime == 0
+                ? requestedAt + STANDARD_TERM
+                : user.overdraftDebt.dueTime + EXTENSION_TIME,
             principal: user.overdraftDebt.principal + baseAmount,
             lastChecked: requestedAt,
             state: Status.Good
         });
         //Update User
-        require(IERC20(token).transfer(userAddress, amount), "Tranfer failed");
-        users[userAddress] = user;
+        users[msg.sender] = user;
+        IERC20(token).safeTransfer(msg.sender, amount);
 
-        emit OverdraftUsed(userAddress, baseAmount, token, amount);
+        emit OverdraftUsed(msg.sender, baseAmount, token, amount);
     }
 
     function repayOverdraft(address userAddress, address token, uint256 amount) external {
+        if (msg.sender != userAddress && !delegates[msg.sender]) revert OD_Unauthorized();
         if (supportedTokens[0] != token && supportedTokens[1] != token) revert OD_InvalidToken();
         if (amount == 0) revert OD_MustMoreBeThanZero();
         if (IERC20(token).balanceOf(userAddress) < amount) revert OD_InsufficientBalance();
@@ -168,11 +198,11 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
         if (baseAmount > user.overdraftDebt.amountDue) {
             //get equivalent token amount of actual amount due.
             uint256 tokenAmount = _getTokenAmount(user.overdraftDebt.amountDue, token);
-            require(IERC20(token).transferFrom(userAddress, address(this), tokenAmount), "Repayment Failed");
+            IERC20(token).safeTransferFrom(userAddress, address(this), tokenAmount);
             user.overdraftDebt.amountDue = 0; //since the token will be enough to cover full debt
             emit OverdraftPaid(userAddress, user.overdraftDebt.amountDue, token, tokenAmount);
         } else {
-            require(IERC20(token).transferFrom(userAddress, address(this), amount), "Repayment Failed");
+            IERC20(token).safeTransferFrom(userAddress, address(this), amount);
             user.overdraftDebt.amountDue = user.overdraftDebt.amountDue - baseAmount;
             emit OverdraftPaid(userAddress, baseAmount, token, amount);
         }
@@ -207,8 +237,8 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
             overdraftLimit: limitInBaseCurrency,
             availableLimit: limitInBaseCurrency,
             lastReviewTime: subscribedAt,
-            nextReviewTime: subscribedAt + 60 days,
-            overdraftIds: new bytes6[](0),
+            nextReviewTime: subscribedAt + REVIEW_PERIOD,
+            overdraftIds: new bytes8[](0),
             overdraftDebt: OverdraftDebt({
                 amountDue: 0,
                 serviceFee: 0,
@@ -243,17 +273,44 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
         if (amountDue == 0) revert OD_MustMoreBeThanZero();
         if (user.overdraftDebt.lastChecked + 1 days - 1 > block.timestamp) revert OD_CheckedEarly();
         user.overdraftDebt.amountDue = amountDue + user.overdraftDebt.serviceFee;
+        if (_isOverdue(user.overdraftDebt.dueTime)) {
+            if (_isDefaulted(user.overdraftDebt.dueTime)) {
+                user.overdraftDebt.state = Status.Defaulted;
+            } else {
+                user.overdraftDebt.state = Status.Grace;
+            }
+        }
+        emit OverdraftUpdated(userAddress, user.overdraftDebt.amountDue, user.overdraftDebt.state);
+    }
+
+    /*
+    * set an authorized user to perform function on behalf of users
+    */
+    function setDelegate(address _delegate) external onlyOwner {
+        delegates[_delegate] = true;
+    }
+
+    function withdraw(address recipient, address token, uint256 amount) external onlyOwner nonReentrant {
+        require(recipient != address(0), "Invalid recipient");
+        if (supportedTokens[0] != token && supportedTokens[1] != token) revert OD_InvalidToken();
+        if (amount <= 0) revert OD_MustMoreBeThanZero();
+
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        if (amount > balance) revert OD_InsufficientBalance();
+        IERC20(token).safeTransfer(recipient, amount);
+
+        emit Withdrawal(recipient, amount, token);
     }
 
     ///// Public Functions          /////
     ///// Getters                   /////
-    function getOverdraftById(bytes6 id) public view returns (Overdraft memory) {
+    function getOverdraftById(bytes8 id) public view returns (Overdraft memory) {
         return overdrafts[id];
     }
 
     function getUserOverdrafts(address user) public view returns (Overdraft[] memory) {
         User storage userData = users[user];
-        bytes6[] storage ids = userData.overdraftIds;
+        bytes8[] storage ids = userData.overdraftIds;
         Overdraft[] memory results = new Overdraft[](ids.length);
         for (uint256 i = 0; i < ids.length; i++) {
             results[i] = overdrafts[ids[i]];
@@ -287,35 +344,47 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
      */
     function _getBaseAmount(uint256 amount, address token) internal view returns (uint256 baseAmount) {
         //Todo: Impliment price check with Uniswap V3
+        uint8 decimals = tokenDecimals[token];
+        uint256 normalizedAmount = amount * 10 ** (18 - decimals);
         if (token == supportedTokens[1]) {
-            return amount * 1; //Probably add ChainLink feed for proper stable value
+            return normalizedAmount * 1; //Probably add ChainLink feed for proper stable value
         } else if (token == supportedTokens[0]) {
             uint256 rate = _getRate(uniswapPools[0]);
-            return (amount * 0.995e18 / rate * S_FACTOR) / S_FACTOR;
+            return (normalizedAmount * FEE_FACTOR) / rate;
         } else {
             //native token
             uint256 rate = _getRate(uniswapPools[1]);
-            return (amount * 0.995e18 / rate * S_FACTOR) / S_FACTOR;
+            return (normalizedAmount * FEE_FACTOR) / rate;
         }
     }
 
     function _getTokenAmount(uint256 amount, address token) internal view returns (uint256 tokenAmount) {
         //Todo: Impliment price check with Uniswap V3
+        uint8 decimals = tokenDecimals[token];
+        uint256 normalizedAmount = amount * 10 ** (18 - decimals);
         if (token == supportedTokens[1]) {
-            return amount * 1;
+            return normalizedAmount * 1;
         } else if (token == supportedTokens[0]) {
             uint256 rate = _getRate(uniswapPools[0]);
-            return ((amount * rate) / 0.995e18); //Adjusted S_FACTOR
+            return ((normalizedAmount * rate) / FEE_FACTOR);
         } else {
             //native token
             uint256 rate = _getRate(uniswapPools[1]);
-            return ((amount * rate) / 0.995e18); //Adjusted S_FACTOR
+            return ((normalizedAmount * rate) / FEE_FACTOR);
         }
     }
 
     function _getRate(address uniswapPool) internal view returns (uint256 rate) {
         IUniswapV3Pool localUSDPool = IUniswapV3Pool(uniswapPool);
-        (uint160 sqrtPriceX96,,,,,,) = localUSDPool.slot0();
+        uint32 twapInterval = 750; //12+min TWAP
+        uint32[] memory secondsAgo = new uint32[](2);
+        secondsAgo[0] = twapInterval;
+        secondsAgo[1] = 0;
+        (int56[] memory tickCumulatives,) = localUSDPool.observe(secondsAgo);
+        int56 tickCumulativesDelta = tickCumulatives[1] - tickCumulatives[0];
+        int24 timeWeightedAverageTick = int24(tickCumulativesDelta / int56(uint56(twapInterval)));
+        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(timeWeightedAverageTick);
+        //(uint160 sqrtPriceX96,,,,,,) = localUSDPool.slot0();
         uint256 price =
             FullMath.mulDiv(uint256(sqrtPriceX96) * S_FACTOR, uint256(sqrtPriceX96), FixedPoint96.Q96 * S_FACTOR);
         return price * S_FACTOR / FixedPoint96.Q96;
@@ -334,6 +403,14 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
         if (amount < 20e18) return _getBaseAmount(0.15e18, supportedTokens[0]);
         if (amount < 50e18) return _getBaseAmount(0.23e18, supportedTokens[0]);
         return _getBaseAmount(0.35e18, supportedTokens[0]); //50 - 100
+    }
+
+    function _isOverdue(uint256 dueTime) internal view returns (bool) {
+        return block.timestamp > dueTime + TIME_TOLERANCE;
+    }
+
+    function _isDefaulted(uint256 dueTime) internal view returns (bool) {
+        return block.timestamp > dueTime + STANDARD_TERM + TIME_TOLERANCE;
     }
 
     // Override transferOwnership to also manage roles
