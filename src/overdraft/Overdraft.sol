@@ -376,7 +376,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
 
     function _getRate(address uniswapPool) internal view returns (uint256 rate) {
         IUniswapV3Pool localUSDPool = IUniswapV3Pool(uniswapPool);
-        uint32 twapInterval = 750; //12+min TWAP
+        uint32 twapInterval = 1350; //45+min TWAP
         uint32[] memory secondsAgo = new uint32[](2);
         secondsAgo[0] = twapInterval;
         secondsAgo[1] = 0;
