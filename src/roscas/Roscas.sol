@@ -548,7 +548,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
 
         if (noSignOffRoscas[_roscaId]) {
             address admin = roscas[_roscaId].admin;
-            this.requestLoan(
+            requestLoan(
                 requestedAmount,
                 _interestAmount,
                 tenor,
