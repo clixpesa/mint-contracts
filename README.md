@@ -22,6 +22,9 @@ Features include:
 - **Roscas:** 
   Proxy: [0xBA885fCE1407079F490353083a193956A1ce8b4e](https://alfajores.celoscan.io/address/0xBA885fCE1407079F490353083a193956A1ce8b4e) | 
   Implimentation: 0xb8ee697b85Adf6D2715D3C137ABcD04a971747B3
+- **Goal Savings:**
+  Proxy: [0x458ec0FE8fA66fEDCBEDD314D3155b733cEE6d81](https://alfajores.celoscan.io/address/0x458ec0FE8fA66fEDCBEDD314D3155b733cEE6d81) | 
+  Implimentation: 0x4B9cBC5a999De5d7Fbb86241A9d9Ba03F481b960
 
 
 ### Celo Mainnet Deployments
