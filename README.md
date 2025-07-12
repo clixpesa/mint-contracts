@@ -23,7 +23,7 @@ Features include:
   Proxy: [0xBA885fCE1407079F490353083a193956A1ce8b4e](https://alfajores.celoscan.io/address/0xBA885fCE1407079F490353083a193956A1ce8b4e) | 
   Implimentation: 0xb8ee697b85Adf6D2715D3C137ABcD04a971747B3
 - **Goal Savings:**
-  Proxy: [0xA8bd226aD6E2714D816adECB6C3D7C4CF884285d](https://alfajores.celoscan.io/address/0x458ec0FE8fA66fEDCBEDD314D3155b733cEE6d81) | 
+  Proxy: [0xA8bd226aD6E2714D816adECB6C3D7C4CF884285d](https://alfajores.celoscan.io/address/0xA8bd226aD6E2714D816adECB6C3D7C4CF884285d) | 
   Implimentation: 0xC94150ed5a68d428Ae3aB1a274561185442300d7
 
 
@@ -37,6 +37,9 @@ Features include:
 - **Roscas:** 
   Proxy: [0xC704eCe3551c30449E24B1905A25537C4cD92bF9](https://celoscan.io/address/0xC704eCe3551c30449E24B1905A25537C4cD92bF9) 
   Implimentation: 0x1690D7270FE65034658CbDf77ca2db14f2f2eeDe
+- **Goal Savings:**
+  Proxy: [0xDd2c5A7e7b522e506Ca7b1D96244864849a045b7](https://celoscan.io/address/0xDd2c5A7e7b522e506Ca7b1D96244864849a045b7) | 
+  Implimentation: 0xd546cdE2bC873Aa268370a80D6cEDF991aaa25B6
 
 
 ## Usage
