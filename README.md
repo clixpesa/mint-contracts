@@ -22,6 +22,9 @@ Features include:
 - **Roscas:** 
   Proxy: [0xBA885fCE1407079F490353083a193956A1ce8b4e](https://alfajores.celoscan.io/address/0xBA885fCE1407079F490353083a193956A1ce8b4e) | 
   Implimentation: 0xb8ee697b85Adf6D2715D3C137ABcD04a971747B3
+- **Roscas Slots:** 
+  Proxy: [0x2A5Be2d605Ca47E77b0Be0916dce86B781DA2371](https://alfajores.celoscan.io/address/0x2A5Be2d605Ca47E77b0Be0916dce86B781DA2371) | 
+  Implimentation: 0xe69D93B202486D364E91F49827f28DE69D88F89B
 - **Goal Savings:**
   Proxy: [0xA8bd226aD6E2714D816adECB6C3D7C4CF884285d](https://alfajores.celoscan.io/address/0xA8bd226aD6E2714D816adECB6C3D7C4CF884285d) | 
   Implimentation: 0xC94150ed5a68d428Ae3aB1a274561185442300d7

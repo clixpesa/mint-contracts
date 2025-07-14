@@ -40,6 +40,10 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
         uint256 interaval; //alteast 7days in seconds
         uint256 startDate; //seconds
     }
+    struct SlotPayments {
+        address member;
+        uint256 amount;
+    }
 
     struct Slot {
         uint8 id;
@@ -103,7 +107,7 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
     function createRosca(string memory _name, address _token, SlotInfo memory _slotInfo) external {
         if (_slotInfo.payoutAmount == 0) revert CR_MustBeMoreThanZero();
         if (_slotInfo.memberCount > 255) revert CR_RoscaTooBig();
-        //if (_slotInfo.interaval < 604800) revert CR_SmallInterval();
+        if (_slotInfo.interaval < 604800) revert CR_SmallInterval();
         if (_slotInfo.startDate < block.timestamp) _slotInfo.startDate = block.timestamp;//revert CR_ExpiredStartDate();
         
         // Generate unique ROSCA ID
@@ -280,6 +284,29 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
 
         _payoutSlot(_roscaId, slot.id, slot.owner, slot.amount);
     }
+
+    function getSlotPayments(bytes8 roscaId, uint8 slotId) public view returns (SlotPayments[] memory ) {
+        address[] memory slotMembers = members[roscaId];
+        SlotPayments[] memory payments = new SlotPayments[](slotMembers.length);
+    
+        for (uint i = 0; i < slotMembers.length; i++) {
+            payments[i] = SlotPayments({member: slotMembers[i], amount: slotPayments[roscaId][slotId][slotMembers[i]]});
+        } 
+    
+        return payments;
+    }
+
+    function getUserRoscas(address user) public view returns (Rosca[] memory) {
+        bytes8[] storage roscaIds = userRoscas[user];
+        Rosca[] memory result = new Rosca[](roscaIds.length);
+        
+        for (uint256 i = 0; i < roscaIds.length; i++) {
+            result[i] = roscas[roscaIds[i]];
+        }
+        
+        return result;
+    } 
+
 
     function _normalizeAmount(uint256 _amount, address _token) internal view returns (uint256) {
         uint8 decimals = IERC20Metadata(_token).decimals();
