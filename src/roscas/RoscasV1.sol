@@ -86,6 +86,7 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
     event ActiveSlotUpdated(bytes8 indexed roscaId, uint8 indexed slotId, uint256 time);
     event SlotDefaulted(bytes8 indexed roscaId, uint8 indexed slotId);
     event SlotFunded(bytes8 indexed roscaId, uint8 indexed slotId, uint256 indexed amount, address user);
+    event SlotPaidOut(bytes8 indexed roscaId, uint8 indexed slotId, uint256 indexed amount, string token, address user);
     
      /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -102,7 +103,7 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
     function createRosca(string memory _name, address _token, SlotInfo memory _slotInfo) external {
         if (_slotInfo.payoutAmount == 0) revert CR_MustBeMoreThanZero();
         if (_slotInfo.memberCount > 255) revert CR_RoscaTooBig();
-        if (_slotInfo.interaval < 604800) revert CR_SmallInterval();
+        //if (_slotInfo.interaval < 604800) revert CR_SmallInterval();
         if (_slotInfo.startDate < block.timestamp) _slotInfo.startDate = block.timestamp;//revert CR_ExpiredStartDate();
         
         // Generate unique ROSCA ID
@@ -181,7 +182,7 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
         if (!(slot.owner == address(0))) revert CR_SlotIsTaken();
         Slot storage mySlot = userSlot[msg.sender][_roscaId];
         if (mySlot.id == activeSlot[_roscaId].id) revert CR_SlotIsActive();
-        if (mySlot.id == activeSlot[_roscaId].id) revert CR_SlotIsPaid();
+        if (mySlot.paidOut) revert CR_SlotIsPaid();
 
         roscaSlots[_roscaId][mySlot.id-1].owner = address(0);
         slot.owner = msg.sender;
@@ -190,6 +191,7 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
         emit SlotChanged(msg.sender, _roscaId, slot.id);
     }
 
+    //called hourly or daily
     function updateActiveSlots() external {    
         for (uint i = 0; i < allRoscas.length; i++) {
             bytes8 roscaId = allRoscas[i];
@@ -198,6 +200,13 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
             if (rosca.admin == address(0)) continue;
             
             Slot storage currentActive = activeSlot[roscaId];
+            //update the yield in the rosca
+            if (rosca.totalBalance > 0 ) {
+                uint256 newAmt = _applyDailyInterest(rosca.totalBalance, lastYieldUpdate[roscaId]);
+                rosca.yield += (newAmt - rosca.totalBalance);
+                rosca.totalBalance = newAmt;
+                lastYieldUpdate[roscaId] = block.timestamp;
+            }
             // Check if we need to update the active slot
             bool shouldUpdate = currentActive.id == 0 || currentActive.payoutDate <= block.timestamp; // Current slot expired
             if (shouldUpdate) {
@@ -219,10 +228,14 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
                 }
                 
                 Slot memory nextSlot = slots[nextSlotId-1];
-                 // Check if current active slot is underfunded
+                // Check if current active slot is underfunded
                 if (currentActive.id != 0 && currentActive.amount < currentActive.payoutAmount) {
                     defaultedSlot[roscaId] = currentActive;
                     emit SlotDefaulted(roscaId, currentActive.id);
+                }
+                // Check if current active slot is fullyFunded
+                if ( currentActive.id != 0 && currentActive.amount >= currentActive.payoutAmount && currentActive.owner != address(0)) {  
+                    _payoutSlot(rosca.id, currentActive.id, currentActive.owner, currentActive.amount);
                 }
             
                 // Update to next slot
@@ -252,14 +265,57 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
         slot.amount += amount;
         roscaSlots[rosca.id][slot.id-1].amount += amount;
         slotPayments[_roscaId][slot.id][msg.sender] += amount;
+        rosca.totalBalance += amount;
         if(slot.owner != address(0)) userSlot[slot.owner][rosca.id].amount += amount;
         
         emit SlotFunded(rosca.id, slot.id, amount, msg.sender);
     }
 
+    function withdrawSlot(bytes8 _roscaId) external nonReentrant {
+        if (!isMember[_roscaId][msg.sender]) revert CR_NotAMmeber();
+        Slot storage slot = userSlot[msg.sender][_roscaId];
+        if ((slot.id == activeSlot[_roscaId].id) || (slot.id == defaultedSlot[_roscaId].id)) revert CR_SlotIsActive();
+        if (slot.amount == 0) revert CR_InsufficientBalance();
+        if (slot.paidOut) revert CR_SlotIsPaid();
+
+        _payoutSlot(_roscaId, slot.id, slot.owner, slot.amount);
+    }
+
     function _normalizeAmount(uint256 _amount, address _token) internal view returns (uint256) {
         uint8 decimals = IERC20Metadata(_token).decimals();
         return _amount * (10 ** (18 - decimals));
+    }
+
+    function _payoutSlot(bytes8 _roscaId, uint8 _slotId, address _owner, uint256 _amount ) internal {
+        Rosca storage rosca = roscas[_roscaId];
+        if(rosca.totalBalance < _amount) revert CR_InsufficientBalance();
+        //Handle yield
+        uint256 withdrawalRatio = _amount * 1e18 / rosca.totalBalance;
+        uint256 yieldReduction = (rosca.yield * withdrawalRatio) / 1e18;
+        rosca.totalBalance -= _amount;
+        rosca.yield -= yieldReduction;
+        //Handle slot amounts
+        roscaSlots[rosca.id][_slotId-1].amount = 0;
+        roscaSlots[rosca.id][_slotId-1].paidOut = true;
+        userSlot[_owner][rosca.id].amount = 0;
+        userSlot[_owner][rosca.id].paidOut = true;
+        //Send over funds
+        IERC20Metadata token = IERC20Metadata(address(rosca.token));
+        uint256 amount = _amount/(10 ** (18 - token.decimals()));
+        rosca.token.safeTransfer(_owner, amount);
+
+        emit SlotPaidOut(rosca.id, _slotId, amount, token.symbol(), _owner);
+    }
+
+    function _applyDailyInterest(uint256 amount, uint256 lastUpdate) internal view returns (uint256) {
+        uint256 daysElapsed = (block.timestamp - lastUpdate) / 1 days;
+        if (daysElapsed == 0) return amount;
+
+        // Compound interest formula: amount * (DIR)^daysElapsed / 1e18^daysElapsed
+        for (uint256 i = 0; i < daysElapsed; i++) {
+            amount = (amount * DIR) / 1e18;
+        }
+        return amount;
     }
 
     function transferOwnership(address newOwner) public override onlyOwner {
