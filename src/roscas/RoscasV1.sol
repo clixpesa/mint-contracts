@@ -26,20 +26,13 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
     error CR_SlotIsPaid();
     error CR_InsufficientBalance();
 
-
-    /*enum Status {
-        Pending,
-        Active,
-        Paused,
-        Done  
-    }*/
-
     struct SlotInfo {
         uint256 payoutAmount;
         uint256 memberCount; //max 255 members minus 1 
         uint256 interaval; //alteast 7days in seconds
         uint256 startDate; //seconds
     }
+
     struct SlotPayments {
         address member;
         uint256 amount;
@@ -80,7 +73,7 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
     mapping(bytes8 roscaId => Slot) public defaultedSlot;
     mapping(address => mapping(bytes8 roscaId => Slot)) public userSlot; //user slot in each rosca
     mapping(bytes8 roscaId => mapping(uint8 slotId => mapping(address member => uint256 payment))) public slotPayments;
-    mapping(bytes8 roscaId => uint256 updateTime ) public lastYieldUpdate;
+    mapping(bytes8 roscaId => uint256 updateTime ) private lastYieldUpdate;
 
     //Events
     event RoscaCreated(address indexed user, bytes8 indexed roscaId);
@@ -91,7 +84,8 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
     event SlotDefaulted(bytes8 indexed roscaId, uint8 indexed slotId);
     event SlotFunded(bytes8 indexed roscaId, uint8 indexed slotId, uint256 indexed amount, address user);
     event SlotPaidOut(bytes8 indexed roscaId, uint8 indexed slotId, uint256 indexed amount, string token, address user);
-    
+    event SuperWithdrawn(address indexed owner, uint256 indexed amount,  address indexed to);
+
      /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -176,6 +170,9 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
         if (slot.id == activeSlot[_roscaId].id){
             activeSlot[_roscaId].owner = msg.sender;
         }
+        if (slot.id == defaultedSlot[_roscaId].id){
+            defaultedSlot[_roscaId].owner = msg.sender;
+        }
 
         emit SlotSelected(msg.sender, _roscaId, _slotId);
     }
@@ -191,6 +188,12 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
         roscaSlots[_roscaId][mySlot.id-1].owner = address(0);
         slot.owner = msg.sender;
         userSlot[msg.sender][_roscaId] = slot;
+         if (slot.id == activeSlot[_roscaId].id){
+            activeSlot[_roscaId].owner = msg.sender;
+        }
+        if (slot.id == defaultedSlot[_roscaId].id){
+            defaultedSlot[_roscaId].owner = msg.sender;
+        }
 
         emit SlotChanged(msg.sender, _roscaId, slot.id);
     }
@@ -285,16 +288,27 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
         _payoutSlot(_roscaId, slot.id, slot.owner, slot.amount);
     }
 
+    // Super withdrawal function for owner
+    function superWithdraw(uint256 _amount, address _to, address _token) external onlyOwner nonReentrant {
+       if (_amount == 0 ) revert CR_MustBeMoreThanZero();
+       IERC20Upgradeable token = IERC20Upgradeable(_token);
+       if (token.balanceOf(address(this)) < _amount) revert CR_InsufficientBalance();
+       token.safeTransferFrom(address(this), _to, _amount);
+
+        emit SuperWithdrawn(msg.sender, _amount, _to);
+    }
+
     function getSlotPayments(bytes8 roscaId, uint8 slotId) public view returns (SlotPayments[] memory ) {
         address[] memory slotMembers = members[roscaId];
         SlotPayments[] memory payments = new SlotPayments[](slotMembers.length);
     
         for (uint i = 0; i < slotMembers.length; i++) {
-            payments[i] = SlotPayments({member: slotMembers[i], amount: slotPayments[roscaId][slotId][slotMembers[i]]});
+            payments[i] = SlotPayments({ member: slotMembers[i], amount: slotPayments[roscaId][slotId][slotMembers[i]]});
         } 
     
         return payments;
     }
+
 
     function getUserRoscas(address user) public view returns (Rosca[] memory) {
         bytes8[] storage roscaIds = userRoscas[user];
@@ -307,6 +321,23 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
         return result;
     } 
 
+    function getRoscaSlots(bytes8 roscaId) public view returns (Slot[] memory) {
+        uint256 memberCount = roscas[roscaId].slotInfo.memberCount;
+        Slot[] memory result = new Slot[](memberCount);
+        for (uint256 i = 0; i < memberCount; i++) {
+            result[i] = roscaSlots[roscaId][i];
+        }
+        return result;
+    }
+
+    function getRoscaMembers(bytes8 roscaId) public view returns (address[] memory) {
+        uint256 memberCount = members[roscaId].length;
+        address[] memory result = new address[](memberCount);
+        for (uint256 i = 0; i < memberCount; i++) {
+            result[i] = members[roscaId][i];
+        }
+        return result;
+    }
 
     function _normalizeAmount(uint256 _amount, address _token) internal view returns (uint256) {
         uint8 decimals = IERC20Metadata(_token).decimals();
