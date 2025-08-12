@@ -85,6 +85,7 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
     event SlotFunded(bytes8 indexed roscaId, uint8 indexed slotId, uint256 indexed amount, address user);
     event SlotPaidOut(bytes8 indexed roscaId, uint8 indexed slotId, uint256 indexed amount, string token, address user);
     event SuperWithdrawn(address indexed owner, uint256 indexed amount,  address indexed to);
+    event RoscaEdited(address indexed user, bytes8 indexed roscaId);
 
      /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -197,6 +198,17 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
 
         emit SlotChanged(msg.sender, _roscaId, slot.id);
     }
+
+    function editRosca(bytes8 _roscaId, string memory _name) external {
+        Rosca storage rosca = roscas[_roscaId];
+        if (rosca.admin == address(0)) revert CR_RoscaNotFound();
+        if (!isMember[_roscaId][msg.sender]) revert CR_NotAMmeber();
+        rosca.name = _name;
+        roscas[_roscaId] = rosca;
+        
+        emit RoscaEdited(msg.sender, rosca.id);
+    }
+
 
     //called hourly or daily
     function updateActiveSlots() external {    
@@ -335,6 +347,14 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
         address[] memory result = new address[](memberCount);
         for (uint256 i = 0; i < memberCount; i++) {
             result[i] = members[roscaId][i];
+        }
+        return result;
+    }
+
+    function getAllRoscas() public view returns (Rosca[] memory) {
+        Rosca[] memory result = new Rosca[](allRoscas.length);
+         for (uint256 i = 0; i < allRoscas.length; i++) {
+            result[i] = roscas[allRoscas[i]];
         }
         return result;
     }

@@ -32,6 +32,7 @@ contract ClixpesaSavings is Initializable, OwnableUpgradeable, UUPSUpgradeable, 
         uint256 amount;
         uint256 yield; //interest earned
         uint256 target;
+        uint256 deadline;
         uint256 lastUpdate;
     }
 
@@ -46,6 +47,8 @@ contract ClixpesaSavings is Initializable, OwnableUpgradeable, UUPSUpgradeable, 
     event Deposited(address indexed user, bytes8 indexed spaceId, uint256 amount );
     event Withdrawn(address indexed user, bytes8 indexed spaceId, uint256 amount );
     event SuperWithdrawn(address indexed owner, uint256 indexed amount,  address indexed to);
+    event Edited(address indexed user, bytes8 indexed spaceId);
+    event Closed(address indexed user, bytes8 indexed spaceId);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -65,7 +68,7 @@ contract ClixpesaSavings is Initializable, OwnableUpgradeable, UUPSUpgradeable, 
     }
 
     // Create a saving space
-    function create(string memory _name, uint256 _target) external returns (bytes8 spaceId) {
+    function create(string memory _name, uint256 _target, uint256 _deadline) external returns (bytes8 spaceId) {
         if (_target == 0) revert CS_MustMoreBeThanZero();
         spaceId = GenerateId.withAddressNCounter(msg.sender, ++idCounter);
         savings[spaceId] = Savings({
@@ -74,6 +77,7 @@ contract ClixpesaSavings is Initializable, OwnableUpgradeable, UUPSUpgradeable, 
             amount: 0,
             yield: 0,
             target: _target,
+            deadline: _deadline,
             lastUpdate: block.timestamp
         });
         userSavings[msg.sender].push(spaceId);
@@ -126,6 +130,42 @@ contract ClixpesaSavings is Initializable, OwnableUpgradeable, UUPSUpgradeable, 
         emit Withdrawn(msg.sender, id, _amount);
     }
 
+    function edit(bytes8 id, string memory _name, uint256 _target, uint256 _deadline) external  {
+        if (_target == 0) revert CS_MustMoreBeThanZero();
+        if (savingsToOwner[id] != msg.sender ) revert CS_InvalidSaving();
+        Savings storage saving = savings[id];
+        saving.name = _name;
+        saving.target = _target;
+        saving. deadline = _deadline;
+        savings[id] = saving;
+        emit Edited(msg.sender, saving.id);
+    }
+
+    function close(bytes8 id) external nonReentrant {
+        if (savingsToOwner[id] != msg.sender ) revert CS_InvalidSaving();
+        Savings storage saving = savings[id];
+        if (saving.amount > 0 ) {
+            saving.amount = _applyDailyInterest(saving.amount, saving.lastUpdate);
+        }
+        uint256 amount = saving.amount;
+        bytes8[] storage userSavingIds = userSavings[msg.sender];
+        for (uint i = 0; i < userSavingIds.length; i++) {
+            if (userSavingIds[i] == id) {
+                if (i < userSavingIds.length - 1) {
+                    userSavingIds[i] = userSavingIds[userSavingIds.length - 1];
+                }
+                userSavingIds.pop();
+                break;
+            }
+        }
+        delete savings[id];
+        delete savingsToOwner[id];
+        if (amount > 0 ) {
+            usdc.safeTransfer(msg.sender, (amount/1e12));
+        }
+        emit Closed(msg.sender, id);
+    }
+
     // Super withdrawal function for owner
     function superWithdraw(uint256 _amount, address _to, address _token) external onlyOwner nonReentrant {
        if (_amount == 0 ) revert CS_MustMoreBeThanZero();
@@ -167,7 +207,6 @@ contract ClixpesaSavings is Initializable, OwnableUpgradeable, UUPSUpgradeable, 
         return _amount * (10 ** (18 - decimals));
     }
     
-
     function transferOwnership(address newOwner) public override onlyOwner {
         super.transferOwnership(newOwner);
     }

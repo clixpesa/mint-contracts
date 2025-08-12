@@ -45,7 +45,7 @@ Features include:
   Implimentation: 0x2ADDf60de9aD8077F7078f32b0a13756653B79B1
 - **Goal Savings:**
   Proxy: [0xDd2c5A7e7b522e506Ca7b1D96244864849a045b7](https://celoscan.io/address/0xDd2c5A7e7b522e506Ca7b1D96244864849a045b7) | 
-  Implimentation: 0xd546cdE2bC873Aa268370a80D6cEDF991aaa25B6
+  Implimentation: 0x2641f9fbbE8EC6aCee79031E0958cCcdc6C8b7AA
 
 
 ## Usage
