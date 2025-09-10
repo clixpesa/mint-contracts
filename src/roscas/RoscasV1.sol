@@ -160,6 +160,28 @@ contract ClixpesaRoscas is Initializable, OwnableUpgradeable, UUPSUpgradeable, R
         emit RoscaJoined(msg.sender, rosca.id);
     }
 
+     function addMember(bytes8 _roscaId, address _member) external {
+        Rosca storage rosca = roscas[_roscaId];
+       
+        if (rosca.admin == address(0)) revert CR_RoscaNotFound();
+        if (isMember[_roscaId][_member]) revert CR_AlreadyMember();
+        if (members[_roscaId].length >= rosca.slotInfo.memberCount) revert CR_RoscaFull();
+        require(rosca.admin == msg.sender, "Not authorised"); 
+        
+        // Update state
+        members[_roscaId].push(_member);
+        userRoscas[_member].push(_roscaId);
+        isMember[_roscaId][_member] = true;
+        
+        // Initialize payments
+        Slot[] storage slots = roscaSlots[_roscaId];
+        for (uint i = 0; i < slots.length; i++) {
+            slotPayments[_roscaId][slots[i].id][_member] = 0;
+        }
+
+        emit RoscaJoined(_member, rosca.id);
+    }
+
     function selectSlot(bytes8 _roscaId, uint8 _slotId) external {
         if (!isMember[_roscaId][msg.sender]) revert CR_NotAMmeber();
 
