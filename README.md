@@ -42,7 +42,7 @@ Features include:
   Implimentation: 0x1690D7270FE65034658CbDf77ca2db14f2f2eeDe
   **Roscas Slots:** 
   Proxy: [0x08385c3549853f7076774BE93B494791d752Fb85](https://celoscan.io/address/0x08385c3549853f7076774BE93B494791d752Fb85) | 
-  Implimentation: 0x2ADDf60de9aD8077F7078f32b0a13756653B79B1
+  Implimentation: 0x92D556760678377Fd488Ddbee376B361AB6FDD52
 - **Goal Savings:**
   Proxy: [0xDd2c5A7e7b522e506Ca7b1D96244864849a045b7](https://celoscan.io/address/0xDd2c5A7e7b522e506Ca7b1D96244864849a045b7) | 
   Implimentation: 0x2641f9fbbE8EC6aCee79031E0958cCcdc6C8b7AA
