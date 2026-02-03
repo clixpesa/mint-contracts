@@ -22,6 +22,9 @@ Features include:
 - **Roscas:** 
   Proxy: [0xBA885fCE1407079F490353083a193956A1ce8b4e](https://alfajores.celoscan.io/address/0xBA885fCE1407079F490353083a193956A1ce8b4e) | 
   Implimentation: 0xb8ee697b85Adf6D2715D3C137ABcD04a971747B3
+- **Roscas Slots:** 
+  Proxy: [0x2A5Be2d605Ca47E77b0Be0916dce86B781DA2371](https://alfajores.celoscan.io/address/0x2A5Be2d605Ca47E77b0Be0916dce86B781DA2371) | 
+  Implimentation: 0xe69D93B202486D364E91F49827f28DE69D88F89B
 - **Goal Savings:**
   Proxy: [0xA8bd226aD6E2714D816adECB6C3D7C4CF884285d](https://alfajores.celoscan.io/address/0xA8bd226aD6E2714D816adECB6C3D7C4CF884285d) | 
   Implimentation: 0xC94150ed5a68d428Ae3aB1a274561185442300d7
@@ -37,9 +40,12 @@ Features include:
 - **Roscas:** 
   Proxy: [0xC704eCe3551c30449E24B1905A25537C4cD92bF9](https://celoscan.io/address/0xC704eCe3551c30449E24B1905A25537C4cD92bF9) 
   Implimentation: 0x1690D7270FE65034658CbDf77ca2db14f2f2eeDe
+  **Roscas Slots:** 
+  Proxy: [0x08385c3549853f7076774BE93B494791d752Fb85](https://celoscan.io/address/0x08385c3549853f7076774BE93B494791d752Fb85) | 
+  Implimentation: 0x92D556760678377Fd488Ddbee376B361AB6FDD52
 - **Goal Savings:**
   Proxy: [0xDd2c5A7e7b522e506Ca7b1D96244864849a045b7](https://celoscan.io/address/0xDd2c5A7e7b522e506Ca7b1D96244864849a045b7) | 
-  Implimentation: 0xd546cdE2bC873Aa268370a80D6cEDF991aaa25B6
+  Implimentation: 0x2641f9fbbE8EC6aCee79031E0958cCcdc6C8b7AA
 
 
 ## Usage
