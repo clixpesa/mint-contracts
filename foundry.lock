@@ -1,0 +1,26 @@
+{
+  "lib/account-abstraction": {
+    "rev": "7af70c8993a6f42973f520ae0752386a5032abe7"
+  },
+  "lib/forge-std": {
+    "rev": "3b20d60d14b343ee4f908cb8079495c07f5e8981"
+  },
+  "lib/foundry-chainlink-toolkit": {
+    "rev": "d610ec9ef54c325de7de1a5622c19933b2ae26cf"
+  },
+  "lib/foundry-devops": {
+    "rev": "924b6c9534e6b562fa37f751704e18acfae11f72"
+  },
+  "lib/openzeppelin-contracts": {
+    "tag": {
+      "name": "v5.5.0",
+      "rev": "fcbae5394ae8ad52d8e580a3477db99814b9d565"
+    }
+  },
+  "lib/openzeppelin-contracts-upgradeable": {
+    "tag": {
+      "name": "v5.5.0",
+      "rev": "aa677e9d28ed78fc427ec47ba2baef2030c58e7c"
+    }
+  }
+}
