@@ -71,7 +71,7 @@ interface ISavings {
     event Closed(address indexed user, bytes8 indexed spaceId);
 
     // Create a saving space
-    function create(string memory _name, uint256 _target, uint256 _deadline, SavingType savingType)
+    function create(string memory _name, uint256 _target, uint256 _deadline, uint256 _payoutDate, SavingType savingType)
         external
         returns (bytes8 spaceId);
 

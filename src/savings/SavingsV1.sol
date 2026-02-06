@@ -54,21 +54,30 @@ contract ClixpesaSavings is
         _disableInitializers();
     }
 
-    function initialize(address owner) public initializer {
+    function initialize(address owner, address _treasury, address[] memory _supportedTokens) public initializer {
         __Ownable_init(owner);
         __Blacklist_init(owner);
         __Rescuable_init(owner);
         __Pausable_init();
+
+        _setTreasury(_treasury);
+
+        require(_supportedTokens.length == 2, "Invalid length");
+        usdc = IERC20(_supportedTokens[0]);
+        usdt = IERC20(_supportedTokens[1]);
     }
 
     // Create a saving space
     function create(string memory _name, uint256 _target, uint256 _deadline, uint256 _payoutDate, SavingType savingType)
         external
+        notBlacklisted(msg.sender)
         returns (bytes8 spaceId)
     {
         if (_target == 0) revert MustMoreBeThanZero();
         if (_deadline <= block.timestamp) revert InvalidDeadline();
-        if (uint8(savingType) > 3 || uint8(savingType) == 2) revert InvalidSavingType();
+        if (uint8(savingType) > 3 || uint8(savingType) == 2) {
+            revert InvalidSavingType();
+        }
 
         spaceId = GenerateId.withAddressNCounter(msg.sender, ++idCounter);
         savings[spaceId] = Saving({
@@ -97,7 +106,7 @@ contract ClixpesaSavings is
         uint256 _duration,
         uint256 _target,
         ChallengPref _preference
-    ) external returns (bytes8 spaceId) {
+    ) external notBlacklisted(msg.sender) returns (bytes8 spaceId) {
         if (_baseAmount == 0) revert MustMoreBeThanZero();
         if (_duration == 0) revert MustMoreBeThanZero();
         if (_target == 0) revert MustMoreBeThanZero();
@@ -136,18 +145,20 @@ contract ClixpesaSavings is
     function deposit(bytes8 id, uint256 _amount, address _token) external nonReentrant {
         if (_amount == 0) revert MustMoreBeThanZero();
         if (_token == address(0)) revert UnsupportedToken();
-        if (!(_token == address(usdc) || _token == address(usdt))) revert UnsupportedToken();
+        if (!(_token == address(usdc) || _token == address(usdt))) {
+            revert UnsupportedToken();
+        }
         if (savings[id].lastUpdate == 0) revert SavingNotFound();
 
         IERC20 token = IERC20(_token);
         if (token.balanceOf(msg.sender) < _amount) revert InsufficientBalance();
         Saving storage saving = savings[id];
-        /* Calculate and update yield
-        if (saving.amount > 0 ) {
-            uint256 newAmt = _applyDailyInterest(saving.amount, saving.lastUpdate);
-            saving.yield += (newAmt - saving.amount);
-            saving.amount = newAmt;
-        }*/
+        //Calculate and update yield
+        if (saving.savedAmount > 0) {
+            uint256 newAmt = _applyDailyInterest(id, saving.savedAmount, saving.lastUpdate, saving.savingType);
+            saving.yield += (newAmt - saving.savedAmount);
+            saving.savedAmount = newAmt;
+        }
 
         token.safeTransferFrom(msg.sender, treasury, _amount);
         saving.savedAmount += _normalizeAmount(_amount, _token);
@@ -168,19 +179,20 @@ contract ClixpesaSavings is
         emit Deposited(msg.sender, id, _amount);
     }
 
-    function withdraw(bytes8 id, uint256 _amount) external nonReentrant {
+    // Withdraw savings
+    function withdraw(bytes8 id, uint256 _amount) external notBlacklisted(msg.sender) nonReentrant {
         if (_amount == 0) revert MustMoreBeThanZero();
         if (savingsToOwner[id] != msg.sender) revert SavingNotFound();
         Saving storage saving = savings[id];
-        /* Calculate and update yield
-        if (saving.amount > 0) {
-            saving.amount = _applyDailyInterest(saving.amount, saving.lastUpdate);
-        } */
+        //Calculate and update yield
+        if (saving.savedAmount > 0) {
+            saving.savedAmount = _applyDailyInterest(id, saving.savedAmount, saving.lastUpdate, saving.savingType);
+        }
         if (saving.payoutDate > block.timestamp) revert SavingIsLocked();
         if (saving.savedAmount < _amount) revert InsufficientBalance();
 
         saving.lastUpdate = block.timestamp;
-        uint256 withdrawalRatio = _amount * 1e18 / saving.savedAmount;
+        uint256 withdrawalRatio = (_amount * 1e18) / saving.savedAmount;
         uint256 yieldReduction = (saving.yield * withdrawalRatio) / 1e18;
         saving.savedAmount -= _amount;
         saving.yield -= yieldReduction;
@@ -188,6 +200,115 @@ contract ClixpesaSavings is
         usdc.safeTransferFrom(treasury, msg.sender, (_amount / 1e12));
 
         emit Withdrawn(msg.sender, id, _amount);
+    }
+
+    //Edit the saving space
+    function edit(bytes8 id, string memory _name, uint256 _target, uint256 _deadline) external {
+        if (_target == 0) revert MustMoreBeThanZero();
+        if (savingsToOwner[id] != msg.sender) revert SavingNotFound();
+        SavingType savingType = savings[id].savingType;
+        if (uint8(savingType) > 3 || uint8(savingType) == 2) {
+            revert InvalidSavingType();
+        }
+        Saving storage saving = savings[id];
+        saving.name = _name;
+        saving.targetAmount = _target;
+        saving.endDate = _deadline;
+        savings[id] = saving;
+        emit Edited(msg.sender, saving.id);
+    }
+
+    // Edit challenge saving space
+    function editChallenge(
+        bytes8 id,
+        string memory _name,
+        uint256 _baseAmount,
+        uint256 _duration,
+        uint256 _target,
+        ChallengPref _preference
+    ) external {
+        if (_baseAmount == 0) revert MustMoreBeThanZero();
+        if (_duration == 0) revert MustMoreBeThanZero();
+        if (_target == 0) revert MustMoreBeThanZero();
+        if (savingsToOwner[id] != msg.sender) revert SavingNotFound();
+        if (uint8(_preference) > 2) revert InvalidSavingType();
+
+        Saving storage saving = savings[id];
+        saving.name = _name;
+        saving.targetAmount = _target;
+        saving.endDate = block.timestamp + (_duration * 1 weeks);
+        saving.payoutDate = block.timestamp + (_duration * 1 weeks);
+        savings[id] = saving;
+
+        ChallengeDetails storage details = challengeDetails[id];
+        details.duration = _duration;
+        details.nextDeadline = block.timestamp + 1 weeks;
+        details.amountDue = _baseAmount;
+        details.baseAmount = _baseAmount;
+        details.preference = _preference;
+
+        emit Edited(msg.sender, saving.id);
+    }
+
+    function close(bytes8 id) external nonReentrant {
+        if (savingsToOwner[id] != msg.sender) revert SavingNotFound();
+        Saving storage saving = savings[id];
+        if (saving.savedAmount > 0) {
+            saving.savedAmount = _applyDailyInterest(id, saving.savedAmount, saving.lastUpdate, saving.savingType);
+        }
+        uint256 amount = saving.savedAmount;
+        bytes8[] storage userSavingIds = userSavings[msg.sender];
+        for (uint256 i = 0; i < userSavingIds.length; i++) {
+            if (userSavingIds[i] == id) {
+                if (i < userSavingIds.length - 1) {
+                    userSavingIds[i] = userSavingIds[userSavingIds.length - 1];
+                }
+                userSavingIds.pop();
+                break;
+            }
+        }
+        delete savings[id];
+        delete savingsToOwner[id];
+        if (saving.savingType == SavingType.Challenge) {
+            delete challengeDetails[id];
+        }
+        if (amount > 0) {
+            usdc.safeTransferFrom(treasury, msg.sender, (amount / 1e12));
+        }
+        emit Closed(msg.sender, id);
+    }
+
+    function pause() public onlyOwner returns (bool) {
+        PausableUpgradeable._pause();
+        return true;
+    }
+
+    function unpause() public onlyOwner returns (bool) {
+        PausableUpgradeable._unpause();
+        return true;
+    }
+
+    function blacklist(address account) external returns (bool) {
+        return BlacklistUpgradeable._blacklist(account);
+    }
+
+    function unBlacklist(address account) external returns (bool) {
+        return BlacklistUpgradeable._unBlacklist(account);
+    }
+
+    function updateBlacklister(address blacklister) external onlyOwner returns (bool) {
+        BlacklistUpgradeable._updateBlacklister(blacklister);
+        return true;
+    }
+
+    function updateRescuer(address rescuer) external onlyOwner notBlacklisted(rescuer) returns (bool) {
+        Rescuable._updateRescuer(rescuer);
+        return true;
+    }
+
+    function updateTreasury(address _treasury) external onlyOwner notBlacklisted(_treasury) returns (bool) {
+        _setTreasury(_treasury);
+        return true;
     }
 
     // Get specific savings details with interest
@@ -212,6 +333,40 @@ contract ClixpesaSavings is
     function _normalizeAmount(uint256 _amount, address _token) internal view returns (uint256) {
         uint8 decimals = IERC20Metadata(_token).decimals();
         return _amount * (10 ** (18 - decimals));
+    }
+
+    function _setTreasury(address _treasury) internal {
+        require(_treasury != address(0), "Invalid treasury address");
+        treasury = _treasury;
+    }
+
+    function _applyDailyInterest(bytes8 id, uint256 amount, uint256 lastUpdate, SavingType savingType)
+        internal
+        view
+        returns (uint256)
+    {
+        uint256 dir;
+        uint256 daysElapsed = (block.timestamp - lastUpdate) / 1 days;
+        if (daysElapsed == 0) return amount;
+        if (amount <= 500 * 1e18 && savingType == SavingType.Flexible) {
+            dir = TIER1;
+        } else if (amount > 500 * 1e18 && amount <= 10000 * 1e18 && savingType == SavingType.Flexible) {
+            dir = TIER2;
+        } else if ((savingType == SavingType.Fixed || savingType == SavingType.By100) && amount <= 10000) {
+            dir = TIER2;
+        } else if (savingType == SavingType.Challenge) {
+            ChallengeDetails memory details = challengeDetails[id];
+            if (details.duration <= 24) {
+                dir = TIER2;
+            }
+        } else {
+            dir = TIER3;
+        }
+        // Compound interest formula: amount * (DIR)^daysElapsed / 1e18^daysElapsed
+        for (uint256 i = 0; i < daysElapsed; i++) {
+            amount = (amount * dir) / 1e18;
+        }
+        return amount;
     }
 
     function transferOwnership(address newOwner) public override onlyOwner {
