@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -13,7 +13,7 @@ import "../libraries/FixedPoint96.sol";
 import "../libraries/TickMath.sol";
 import "../libraries/FullMath.sol";
 
-contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
+contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard, UUPSUpgradeable {
     using SafeERC20 for IERC20;
 
     ///// Errors                    /////
@@ -116,9 +116,12 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
         address[] memory _supportedTokens,
         address[] memory _uniswapV3Pools,
         string memory _key
-    ) public initializer {
+    )
+        public
+        initializer
+    {
         __Ownable_init(msg.sender);
-        __UUPSUpgradeable_init();
+        //__UUPSUpgradeable_init();
 
         require(_supportedTokens.length == 2, "Invalid length");
         require(_uniswapV3Pools.length == 2, "Invalid length");
@@ -169,7 +172,9 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
             serviceFee: user.overdraftDebt.principal == 0
                 ? _getServiceFee(baseAmount)
                 : _getServiceFee(user.overdraftDebt.principal + baseAmount),
-            effectTime: user.overdraftDebt.effectTime == 0 ? requestedAt : user.overdraftDebt.effectTime + EXTENSION_TIME,
+            effectTime: user.overdraftDebt.effectTime == 0
+                ? requestedAt
+                : user.overdraftDebt.effectTime + EXTENSION_TIME,
             dueTime: user.overdraftDebt.dueTime == 0
                 ? requestedAt + STANDARD_TERM
                 : user.overdraftDebt.dueTime + EXTENSION_TIME,
@@ -240,13 +245,7 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
             nextReviewTime: subscribedAt + REVIEW_PERIOD,
             overdraftIds: new bytes8[](0),
             overdraftDebt: OverdraftDebt({
-                amountDue: 0,
-                serviceFee: 0,
-                effectTime: 0,
-                dueTime: 0,
-                principal: 0,
-                lastChecked: 0,
-                state: Status.Good
+                amountDue: 0, serviceFee: 0, effectTime: 0, dueTime: 0, principal: 0, lastChecked: 0, state: Status.Good
             }),
             suspendedUntil: 0
         });

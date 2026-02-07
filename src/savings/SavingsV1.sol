@@ -58,7 +58,6 @@ contract ClixpesaSavings is
         __Ownable_init(owner);
         __Blacklist_init(owner);
         __Rescuable_init(owner);
-        __Pausable_init();
 
         _setTreasury(_treasury);
 
@@ -328,6 +327,16 @@ contract ClixpesaSavings is
 
     function getChallengeDetailsById(bytes8 _id) external view returns (ChallengeDetails memory) {
         return challengeDetails[_id];
+    }
+
+    function applyDailyInterest(bytes8 id) external nonReentrant {
+        Saving storage saving = savings[id];
+        if (saving.savedAmount > 0) {
+            uint256 newAmt = _applyDailyInterest(id, saving.savedAmount, saving.lastUpdate, saving.savingType);
+            saving.yield += (newAmt - saving.savedAmount);
+            saving.savedAmount = newAmt;
+        }
+        saving.lastUpdate = block.timestamp;
     }
 
     function _normalizeAmount(uint256 _amount, address _token) internal view returns (uint256) {

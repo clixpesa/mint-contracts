@@ -28,7 +28,7 @@ contract TestOverdraft is Test {
     function setUp() public {
         deployer = new DeployOverdraft();
         (overdraft, config) = deployer.run();
-        (,, mUSD, mKES,,) = config.activeNetworkConfig();
+        (,,,, mUSD, mKES,,) = config.activeNetworkConfig();
         console.log(mUSD);
         ERC20Mock(mUSD).mint(address(overdraft), PSTARTING_USD_BAL);
         ERC20Mock(mKES).mint(address(overdraft), PSTARTING_KES_BAL);
@@ -71,7 +71,7 @@ contract TestOverdraft is Test {
         ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
         uint256 baseAmount = overdraft.getBaseAmount(USER_REQUEST_1, mUSD);
         uint256 newAvailableLimit = thisUser.availableLimit - baseAmount;
-        overdraft.useOverdraft(user, mUSD, USER_REQUEST_1);
+        overdraft.useOverdraft(mUSD, USER_REQUEST_1);
         ClixpesaOverdraft.User memory updatedUser = overdraft.getUser(user);
         ClixpesaOverdraft.Overdraft memory thisOverdraft = overdraft.getOverdraftById(updatedUser.overdraftIds[0]);
         assertEq(updatedUser.availableLimit, newAvailableLimit, "Available limit not chnaged");
@@ -99,7 +99,7 @@ contract TestOverdraft is Test {
     function testDailyFeeIsApplied() public {
         vm.prank(user);
         overdraft.subscribeUser(user, 50e18, "CPODTest");
-        overdraft.useOverdraft(user, mUSD, USER_REQUEST_1);
+        overdraft.useOverdraft(mUSD, USER_REQUEST_1);
         vm.stopPrank();
         ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
         uint256 amountDueNow = thisUser.overdraftDebt.amountDue;
@@ -114,7 +114,7 @@ contract TestOverdraft is Test {
         overdraft.subscribeUser(user, 50e18, "CPODTest");
         vm.prank(user);
         ERC20Mock(mUSD).approve(address(overdraft), 50e18);
-        overdraft.useOverdraft(user, mUSD, USER_REQUEST_2);
+        overdraft.useOverdraft(mUSD, USER_REQUEST_2);
         vm.stopPrank();
         ClixpesaOverdraft.User memory thisUser = overdraft.getUser(user);
         uint256 userDebt = thisUser.overdraftDebt.amountDue;
@@ -128,7 +128,7 @@ contract TestOverdraft is Test {
         overdraft.subscribeUser(user, 50e18, "CPODTest");
         vm.prank(user);
         ERC20Mock(mUSD).approve(address(overdraft), 50e18);
-        overdraft.useOverdraft(user, mUSD, USER_REQUEST_2);
+        overdraft.useOverdraft(mUSD, USER_REQUEST_2);
         vm.stopPrank();
         assertEq(ERC20Mock(mUSD).balanceOf(user), USER_REQUEST_2, "Wrong Top Up Value");
         uint256 repaymentValue = USER_REQUEST_2 + ((USER_REQUEST_2 * 0.01e18) / 1e18);
@@ -143,7 +143,7 @@ contract TestOverdraft is Test {
         overdraft.subscribeUser(user, 50e18, "CPODTest");
         vm.prank(user);
         ERC20Mock(mUSD).approve(address(overdraft), 50e18);
-        overdraft.useOverdraft(user, mUSD, USER_REQUEST_2);
+        overdraft.useOverdraft(mUSD, USER_REQUEST_2);
         vm.stopPrank();
         ERC20Mock(mUSD).mint(user, USER_REQUEST_2);
         assertEq(ERC20Mock(mUSD).balanceOf(user), USER_REQUEST_2 * 2, "Wrong Balance");

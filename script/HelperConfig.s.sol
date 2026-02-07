@@ -12,10 +12,12 @@ contract HelperConfig is Script {
     NetworkConfig public activeNetworkConfig;
 
     struct NetworkConfig {
+        address treasury;
         address entryPoint;
         address paymaster;
-        address usdStable;
-        address localStable;
+        address usdc;
+        address usdt;
+        address local;
         address localxUSDPool;
         address localxNativePool;
     }
@@ -32,12 +34,14 @@ contract HelperConfig is Script {
         return activeNetworkConfig;
     }
 
-    function getCeloAlfajoresConfig() public pure returns (NetworkConfig memory alfajoresNetworkConfig) {
+    function getCeloAlfajoresConfig() public view returns (NetworkConfig memory alfajoresNetworkConfig) {
         alfajoresNetworkConfig = NetworkConfig({
+            treasury: vm.addr(vm.envUint("VERIFIER_KEY")),
             entryPoint: 0x0f7F961648aE6Db43C75663aC7E5414Eb79b5704,
             paymaster: 0x0f7F961648aE6Db43C75663aC7E5414Eb79b5704, //Yet to deploy here
-            usdStable: 0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1, //cUSD on celo //USDC/USDT on other chains
-            localStable: 0x1E0433C1769271ECcF4CFF9FDdD515eefE6CdF92, //cKES on celo //KEXC on other chain
+            usdc: 0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1,
+            usdt: 0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1,
+            local: 0x1E0433C1769271ECcF4CFF9FDdD515eefE6CdF92, //cKES on celo //KEXC on other chain
             localxUSDPool: 0xabfa6E70e7277E846d5c4f7e386890B1a6367809, //cKES/cUSD
             localxNativePool: 0x52F574608865ece6BE78D9C9F103C4cEEdF59d69 //cKES/CELO
         });
@@ -47,7 +51,7 @@ contract HelperConfig is Script {
 
     function getOrCreateAnvilConfig() public returns (NetworkConfig memory anvilNetworkConfig) {
         // Check to see if we set an active network config
-        if (activeNetworkConfig.usdStable != address(0)) {
+        if (activeNetworkConfig.usdc != address(0)) {
             return activeNetworkConfig;
         }
 
@@ -56,6 +60,7 @@ contract HelperConfig is Script {
         EntryPoint entryPoint = new EntryPoint();
         Paymaster paymaster = new Paymaster(entryPoint, verifier);
         ERC20Mock usdStableMock = new ERC20Mock();
+        ERC20Mock usdStableMock1 = new ERC20Mock();
         ERC20Mock localStableMock = new ERC20Mock();
         MockUniswapV3Pool localxUSDPool = new MockUniswapV3Pool(6953847655734468307368597752); //get from mainnet
         MockUniswapV3Pool localxNativePool = new MockUniswapV3Pool(11611981720247345246476462806); //get from mainnet
@@ -63,10 +68,12 @@ contract HelperConfig is Script {
         vm.stopBroadcast();
 
         anvilNetworkConfig = NetworkConfig({
+            treasury: verifier,
             entryPoint: address(entryPoint),
             paymaster: address(paymaster),
-            usdStable: address(usdStableMock),
-            localStable: address(localStableMock),
+            usdc: address(usdStableMock),
+            usdt: address(usdStableMock1),
+            local: address(localStableMock),
             localxUSDPool: address(localxUSDPool),
             localxNativePool: address(localxNativePool)
         });

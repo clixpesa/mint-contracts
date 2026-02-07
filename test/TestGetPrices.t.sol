@@ -23,7 +23,7 @@ contract TestGetPrices is Test {
     function setUp() public {
         deployer = new DeployOverdraft();
         (overdraft, config) = deployer.run();
-        (,,,, ckesUSDPool, ckesCELOPool) = config.activeNetworkConfig();
+        (,,,,,, ckesUSDPool, ckesCELOPool) = config.activeNetworkConfig();
     }
 
     function testCKESRate() public view {

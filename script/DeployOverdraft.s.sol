@@ -13,15 +13,14 @@ contract DeployOverdraft is Script {
     function run() external returns (ClixpesaOverdraft, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
         (
-            ,
-            ,
-            address usdStable, //cUSD on celo //USDC/USDT on other chains
+            ,,,
+            address usdc,,
             address localStable, //cKES on celo //KEXC on other chains
             address localxUSDPool,
             address localxNativePool
         ) = helperConfig.activeNetworkConfig();
 
-        supportedTokens = [usdStable, localStable];
+        supportedTokens = [usdc, localStable];
         uniswapPools = [localxUSDPool, localxNativePool];
 
         vm.startBroadcast(vm.envUint("DEV_KEY"));

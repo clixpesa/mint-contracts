@@ -95,7 +95,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
     function initialize(address defaultAdmin) public initializer {
         __Ownable_init(defaultAdmin);
         __AccessControl_init();
-        __UUPSUpgradeable_init();
+        //__UUPSUpgradeable_init();
 
         // Setup roles
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
@@ -127,7 +127,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
 
     /*
     _________________________________________________________________________________________________
-    
+
     ROSCA MANAGEMENT
     _________________________________________________________________________________________________
     */
@@ -193,7 +193,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
 
     /*
     _________________________________________________________________________________________________
-    
+
     LOAN BOOK MANAGEMENT
     _________________________________________________________________________________________________
     */
@@ -380,7 +380,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
 
     /*
     _________________________________________________________________________________________________
-    
+
     ADMIN FUNCTIONS
     _________________________________________________________________________________________________
     */
@@ -585,7 +585,7 @@ contract ClixpesaRoscas is Initializable, AccessControlUpgradeable, OwnableUpgra
 
     /*
     _________________________________________________________________________________________________
-    
+
     HELPER FUNCTIONS
     _________________________________________________________________________________________________
     */

@@ -10,7 +10,7 @@ contract GenerateIdTest is Test {
         assertEq(GenerateId.withKey(genKey), expectedId, "IDs not equal");
     }
 
-    function test_fuzz_GenerateId(address user, uint128 count) public pure {
+    function test_fuzz_GenerateId(address user, uint128 count) public view {
         bytes6 expectedId = bytes6(keccak256(abi.encodePacked(user, count)));
         assertEq(GenerateId.withAddressNCounter(user, count), expectedId, "IDs not equal");
     }

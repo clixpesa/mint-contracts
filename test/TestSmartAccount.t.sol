@@ -38,33 +38,33 @@ contract TestSmartAccount is Test {
 
     function testOwnerCanExecute() public {
         // mint a token
-        assertEq(ERC20Mock(networkConfig.usdStable).balanceOf(address(smartAccount)), 0);
+        assertEq(ERC20Mock(networkConfig.usdc).balanceOf(address(smartAccount)), 0);
         uint256 value = 0;
         bytes memory data =
-            abi.encodeWithSelector(ERC20Mock(networkConfig.usdStable).mint.selector, address(smartAccount), 10e18);
+            abi.encodeWithSelector(ERC20Mock(networkConfig.usdc).mint.selector, address(smartAccount), 10e18);
         vm.prank(owner);
-        smartAccount.execute(address(networkConfig.usdStable), value, data);
-        assertEq(ERC20Mock(networkConfig.usdStable).balanceOf(address(smartAccount)), 10e18);
+        smartAccount.execute(address(networkConfig.usdc), value, data);
+        assertEq(ERC20Mock(networkConfig.usdc).balanceOf(address(smartAccount)), 10e18);
     }
 
     function testNonOwnerCannotExecute() public {
         // mint a token
-        assertEq(ERC20Mock(networkConfig.usdStable).balanceOf(address(smartAccount)), 0);
+        assertEq(ERC20Mock(networkConfig.usdc).balanceOf(address(smartAccount)), 0);
         uint256 value = 0;
         bytes memory data =
-            abi.encodeWithSelector(ERC20Mock(networkConfig.usdStable).mint.selector, address(smartAccount), 10e18);
+            abi.encodeWithSelector(ERC20Mock(networkConfig.usdc).mint.selector, address(smartAccount), 10e18);
         vm.prank(randomuser);
         vm.expectRevert("account: not Owner or EntryPoint");
-        smartAccount.execute(address(networkConfig.usdStable), value, data);
+        smartAccount.execute(address(networkConfig.usdc), value, data);
     }
 
     function testRecoverSignedOp() public view {
-        assertEq(ERC20Mock(networkConfig.usdStable).balanceOf(address(smartAccount)), 0);
+        assertEq(ERC20Mock(networkConfig.usdc).balanceOf(address(smartAccount)), 0);
         uint256 value = 0;
         bytes memory data =
-            abi.encodeWithSelector(ERC20Mock(networkConfig.usdStable).mint.selector, address(smartAccount), 10e18);
+            abi.encodeWithSelector(ERC20Mock(networkConfig.usdc).mint.selector, address(smartAccount), 10e18);
         bytes memory executeCalldata =
-            abi.encodeWithSelector(SmartAccount.execute.selector, networkConfig.usdStable, value, data);
+            abi.encodeWithSelector(SmartAccount.execute.selector, networkConfig.usdc, value, data);
 
         PackedUserOperation memory packedUserOp =
             sendPackedUserOp.generateSignedUserOp(address(smartAccount), executeCalldata, networkConfig);
@@ -77,12 +77,12 @@ contract TestSmartAccount is Test {
     }
 
     function testValidationOfUserOps() public {
-        assertEq(ERC20Mock(networkConfig.usdStable).balanceOf(address(smartAccount)), 0);
+        assertEq(ERC20Mock(networkConfig.usdc).balanceOf(address(smartAccount)), 0);
         uint256 value = 0;
         bytes memory data =
-            abi.encodeWithSelector(ERC20Mock(networkConfig.usdStable).mint.selector, address(smartAccount), 10e18);
+            abi.encodeWithSelector(ERC20Mock(networkConfig.usdc).mint.selector, address(smartAccount), 10e18);
         bytes memory executeCalldata =
-            abi.encodeWithSelector(SmartAccount.execute.selector, networkConfig.usdStable, value, data);
+            abi.encodeWithSelector(SmartAccount.execute.selector, networkConfig.usdc, value, data);
 
         PackedUserOperation memory packedUserOp =
             sendPackedUserOp.generateSignedUserOp(address(smartAccount), executeCalldata, networkConfig);
@@ -97,12 +97,12 @@ contract TestSmartAccount is Test {
     }
 
     function testEntryPointCanHandleOps() public {
-        assertEq(ERC20Mock(networkConfig.usdStable).balanceOf(address(smartAccount)), 0);
+        assertEq(ERC20Mock(networkConfig.usdc).balanceOf(address(smartAccount)), 0);
         uint256 value = 0;
         bytes memory data =
-            abi.encodeWithSelector(ERC20Mock(networkConfig.usdStable).mint.selector, address(smartAccount), 10e18);
+            abi.encodeWithSelector(ERC20Mock(networkConfig.usdc).mint.selector, address(smartAccount), 10e18);
         bytes memory executeCalldata =
-            abi.encodeWithSelector(SmartAccount.execute.selector, networkConfig.usdStable, value, data);
+            abi.encodeWithSelector(SmartAccount.execute.selector, networkConfig.usdc, value, data);
 
         PackedUserOperation memory packedUserOp =
             sendPackedUserOp.generateSignedUserOp(address(smartAccount), executeCalldata, networkConfig);
@@ -115,16 +115,16 @@ contract TestSmartAccount is Test {
         vm.prank(verifier);
         IEntryPoint(networkConfig.entryPoint).handleOps(packedUserOps, payable(verifier));
 
-        assertEq(ERC20Mock(networkConfig.usdStable).balanceOf(address(smartAccount)), 10e18);
+        assertEq(ERC20Mock(networkConfig.usdc).balanceOf(address(smartAccount)), 10e18);
     }
 
     function testHandleOpsWithPaymaster() public {
-        assertEq(ERC20Mock(networkConfig.usdStable).balanceOf(address(smartAccount)), 0);
+        assertEq(ERC20Mock(networkConfig.usdc).balanceOf(address(smartAccount)), 0);
         uint256 value = 0;
         bytes memory data =
-            abi.encodeWithSelector(ERC20Mock(networkConfig.usdStable).mint.selector, address(smartAccount), 10e18);
+            abi.encodeWithSelector(ERC20Mock(networkConfig.usdc).mint.selector, address(smartAccount), 10e18);
         bytes memory executeCalldata =
-            abi.encodeWithSelector(SmartAccount.execute.selector, networkConfig.usdStable, value, data);
+            abi.encodeWithSelector(SmartAccount.execute.selector, networkConfig.usdc, value, data);
 
         PackedUserOperation memory packedUserOp =
             sendPackedUserOp.generateSignedUserOpWithPaymaster(address(smartAccount), executeCalldata, networkConfig);
@@ -140,6 +140,6 @@ contract TestSmartAccount is Test {
         console.log("Paymaster After bal:", address(networkConfig.paymaster).balance);
         console.log("Verifier After bal:", address(smartAccount).balance);
         console.log("Entrypoint After bal:", eBalance);
-        assertEq(ERC20Mock(networkConfig.usdStable).balanceOf(address(smartAccount)), 10e18);
+        assertEq(ERC20Mock(networkConfig.usdc).balanceOf(address(smartAccount)), 10e18);
     }
 }
