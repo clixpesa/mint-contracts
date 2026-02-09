@@ -361,7 +361,9 @@ contract ClixpesaSavings is
             dir = TIER1;
         } else if (amount > 500 * 1e18 && amount <= 10000 * 1e18 && savingType == SavingType.Flexible) {
             dir = TIER2;
-        } else if ((savingType == SavingType.Fixed || savingType == SavingType.By100) && amount <= 10000) {
+        } else if (savingType == SavingType.Fixed && amount <= 10000 * 1e18) {
+            dir = TIER2;
+        } else if (savingType == SavingType.By100 && amount <= 10000 * 1e18) {
             dir = TIER2;
         } else if (savingType == SavingType.Challenge) {
             ChallengeDetails memory details = challengeDetails[id];

@@ -64,10 +64,8 @@ contract TestSavings is Test {
 
     /// @dev Helper to deposit to a saving
     function _deposit(bytes8 savingId, uint256 amount) internal {
-        vm.startPrank(user);
-        //ERC20Mock(usdc).approve(address(savings), amount);
+        vm.prank(user);
         savings.deposit(savingId, amount, usdc);
-        vm.stopPrank();
     }
 
     /// @dev Helper to calculate percentage difference
@@ -135,7 +133,7 @@ contract TestSavings is Test {
     /// @dev Test TIER1 with 1 day elapsed
     function testTier1OneDay() public {
         bytes8 savingId = _createSaving("Tier1 Test", USER_TARGET, ISavings.SavingType.Flexible);
-        _deposit(savingId, 100e18);
+        _deposit(savingId, USER_TARGET);
 
         // Advance 1 day
         vm.warp(block.timestamp + 1 days);
@@ -143,10 +141,12 @@ contract TestSavings is Test {
         // Calculate interest
         savings.applyDailyInterest(savingId);
         uint256 result = savings.getSavingsById(savingId).savedAmount;
+        uint256 balance = ERC20Mock(usdc).balanceOf(treasury);
         // Expected: 100e18 * (10001725e11) / 1e18
         uint256 expected = (USER_TARGET * TIER1) / 1e18;
 
         assertEq(result, expected, "TIER1 1 day interest incorrect");
+        console.log("Treasury Bal", balance);
     }
 
     function testTier1NextDayDeposit() public {
@@ -181,26 +181,42 @@ contract TestSavings is Test {
         _assertApproximatelyEqual(expected, result, "TIER1 1 year not within tolerance");
     }
 
-    /* @dev Test TIER1 with 30 days
-    function testTier1ThirtyDays() public {
-        bytes8 savingId = _createSaving("Tier1 30Days", 500e18, ISavings.SavingType.Flexible);
-        _deposit(savingId, 500e18);
-
-        uint256 principalAmount = 500e18;
-        uint256 lastUpdate = block.timestamp;
+    ///@dev Test TIER2 with 30 days
+    function testTier2ThirtyDays() public {
+        bytes8 savingId = _createSaving("Tier1 30Days", 501e18, ISavings.SavingType.Flexible);
+        _deposit(savingId, 501e18);
 
         vm.warp(block.timestamp + 30 days);
 
-        uint256 result = _applyDailyInterestDirect(principalAmount, lastUpdate, TIER1, 30);
+        // Calculate interest
+        savings.applyDailyInterest(savingId);
+        uint256 result = savings.getSavingsById(savingId).savedAmount;
 
-        // Expected: ~501.777e18 (30 days of 6.5% APY)
-        // Calculation: 500 * (1.00017250274)^30
-        uint256 expected = 501777250e15; // Approximately
+        // Expected: ~503.987e18 (30 days of 7.5% APY)
+        // Calculation: 500 * (1.0001982)^30
+        uint256 expected = 503987e15; // Approximately
 
         _assertApproximatelyEqual(expected, result, "TIER1 30 days not within tolerance");
     }
 
-    /// @dev Test TIER1 with zero days (should return original amount)
+    ///@dev Test TIER2 Fixed with 30 days
+    function testTier2ThirtyDaysFixed() public {
+        bytes8 savingId = _createSaving("Tier2 Fixed 30Days", 501e18, ISavings.SavingType.Fixed);
+        _deposit(savingId, 501e18);
+
+        vm.warp(block.timestamp + 30 days);
+
+        // Calculate interest
+        savings.applyDailyInterest(savingId);
+        uint256 result = savings.getSavingsById(savingId).savedAmount;
+
+        // Expected: ~503.987e18 (30 days of 7.5% APY)
+        // Calculation: 501 * (1.0001982)^30
+        uint256 expected = 503987e15; // Approximately
+        _assertApproximatelyEqual(expected, result, "TIER1 30 days not within tolerance");
+    }
+
+    /* @dev Test TIER1 with zero days (should return original amount)
     function testTier1ZeroDays() public view {
         uint256 principalAmount = 1000e18;
         uint256 lastUpdate = block.timestamp;
