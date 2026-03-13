@@ -289,9 +289,9 @@ contract ClixpesaOverdraft is Initializable, OwnableUpgradeable, ReentrancyGuard
         delegates[_delegate] = true;
     }
 
-    function withdraw(address recipient, address token, uint256 amount) external onlyOwner nonReentrant {
+    function withdraw(address recipient, address token, uint256 amount) external onlyOwner {
         require(recipient != address(0), "Invalid recipient");
-        if (supportedTokens[0] != token && supportedTokens[1] != token) revert OD_InvalidToken();
+        if (supportedTokens[0] != token || supportedTokens[1] != token) revert OD_InvalidToken();
         if (amount <= 0) revert OD_MustMoreBeThanZero();
 
         uint256 balance = IERC20(token).balanceOf(address(this));

@@ -12,6 +12,7 @@ interface ISavings {
     error SavingNotFound();
     error SavingNotActive();
     error SavingIsLocked();
+    error UnsupportedDuration();
 
     enum SavingType {
         Flexible, //General Savings
@@ -26,7 +27,7 @@ interface ISavings {
         Monthly
     }
 
-    enum ChallengPref {
+    enum ChallengePref {
         Low, // Start Low
         Even, // Stay Even
         High // Start High
@@ -48,6 +49,7 @@ interface ISavings {
         uint256 endDate;
         uint256 payoutDate; //For Fixed and Challenge Savings
         uint256 lastUpdate;
+        uint256 dateCreated;
         SavingType savingType;
         Frequency frequency; // Installment frequency. (for reminders, etc weekly default)
         Status status;
@@ -56,11 +58,12 @@ interface ISavings {
     struct ChallengeDetails {
         bytes8 id;
         uint256 duration; //in weeks
+        uint256 weekNo; //current week number
         uint256 nextDeadline; //next installment deadline
         uint256 lastDeposit; //last deposit timestamp
         uint256 amountDue; //any missed amount, plus current amount due, plus penalties
         uint256 baseAmount; //base amount
-        ChallengPref preference; //challenge preference
+        ChallengePref preference; //challenge preference
     }
 
     // Events
@@ -76,13 +79,9 @@ interface ISavings {
         returns (bytes8 spaceId);
 
     // Create a challenge saving space
-    function createChallenge(
-        string memory _name,
-        uint256 _baseAmount,
-        uint256 _duration,
-        uint256 _target,
-        ChallengPref _preference
-    ) external returns (bytes8 spaceId);
+    function createChallenge(string memory _name, uint256 _duration, uint256 _target, ChallengePref _preference)
+        external
+        returns (bytes8 spaceId);
 
     // Deposit stablecoins
     function deposit(bytes8 id, uint256 _amount, address _token) external;
@@ -100,7 +99,7 @@ interface ISavings {
         uint256 _baseAmount,
         uint256 _duration,
         uint256 _target,
-        ChallengPref _preference
+        ChallengePref _preference
     ) external;
 
     // Close saving space

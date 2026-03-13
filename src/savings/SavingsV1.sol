@@ -16,6 +16,7 @@ import {ISavings} from "../interfaces/ISavings.sol";
 import {BlacklistUpgradeable} from "../utils/BlacklistUpgradeable.sol";
 import {Rescuable} from "../utils/Rescuable.sol";
 import {GenerateId} from "../libraries/GenerateId.sol";
+import {SavingDetails} from "../libraries/SavingDetails.sol";
 
 /// @custom:security-contact checki@clixpesa.com
 contract ClixpesaSavings is
@@ -72,9 +73,9 @@ contract ClixpesaSavings is
         notBlacklisted(msg.sender)
         returns (bytes8 spaceId)
     {
-        if (_target == 0) revert MustMoreBeThanZero();
+        if (_target <= 0) revert MustMoreBeThanZero();
         if (_deadline <= block.timestamp) revert InvalidDeadline();
-        if (uint8(savingType) > 3 || uint8(savingType) == 2) {
+        if (uint8(savingType) > 3 || savingType == SavingType.Challenge) {
             revert InvalidSavingType();
         }
 
@@ -88,8 +89,9 @@ contract ClixpesaSavings is
             endDate: _deadline,
             payoutDate: _payoutDate,
             lastUpdate: block.timestamp,
+            dateCreated: block.timestamp,
             savingType: savingType,
-            frequency: Frequency.Weekly,
+            frequency: savingType == SavingType.Fixed ? Frequency.Monthly : Frequency.Weekly,
             status: Status.Active
         });
         userSavings[msg.sender].push(spaceId);
@@ -99,28 +101,31 @@ contract ClixpesaSavings is
     }
 
     // Create a challenge saving space
-    function createChallenge(
-        string memory _name,
-        uint256 _baseAmount,
-        uint256 _duration,
-        uint256 _target,
-        ChallengPref _preference
-    ) external notBlacklisted(msg.sender) returns (bytes8 spaceId) {
-        if (_baseAmount == 0) revert MustMoreBeThanZero();
+    function createChallenge(string memory _name, uint256 _duration, uint256 _target, ChallengePref _preference)
+        external
+        notBlacklisted(msg.sender)
+        returns (bytes8 spaceId)
+    {
         if (_duration == 0) revert MustMoreBeThanZero();
         if (_target == 0) revert MustMoreBeThanZero();
+        if ((_duration % 4) != 0) revert ISavings.UnsupportedDuration();
         if (uint8(_preference) > 2) revert InvalidSavingType();
-        //TODO: process dits from preference to set frequency and payout date
         spaceId = GenerateId.withAddressNCounter(msg.sender, ++idCounter);
+        uint256 createdDate = block.timestamp;
+        uint256 firstDealine = SavingDetails.get1stDeadline(createdDate);
+        uint256 baseAmount = SavingDetails.getBaseAmount(_target, _duration, _preference);
+        uint256 installment = SavingDetails.getInstallment(1, baseAmount, _duration, _preference);
+        SavingDetails.Dates memory dates = SavingDetails.getWeeklyDates(_duration, createdDate);
         savings[spaceId] = Saving({
             id: spaceId,
             name: _name,
             savedAmount: 0,
             yield: 0,
             targetAmount: _target,
-            endDate: block.timestamp + (_duration * 1 weeks),
-            payoutDate: block.timestamp + (_duration * 1 weeks),
-            lastUpdate: block.timestamp,
+            endDate: dates.endDate,
+            payoutDate: dates.payoutDate,
+            lastUpdate: createdDate,
+            dateCreated: createdDate,
             savingType: SavingType.Challenge,
             frequency: Frequency.Weekly,
             status: Status.Active
@@ -130,10 +135,11 @@ contract ClixpesaSavings is
         challengeDetails[spaceId] = ChallengeDetails({
             id: spaceId,
             duration: _duration,
-            nextDeadline: block.timestamp + 1 weeks,
+            nextDeadline: firstDealine,
             lastDeposit: 0,
-            amountDue: _baseAmount,
-            baseAmount: _baseAmount,
+            amountDue: installment,
+            baseAmount: baseAmount,
+            weekNo: 1,
             preference: _preference
         });
 
@@ -170,7 +176,10 @@ contract ClixpesaSavings is
             }
             if (block.timestamp > details.nextDeadline) {
                 details.nextDeadline += 1 weeks; //set next deadline
-                details.amountDue += details.baseAmount; //add next installment to amount due
+                details.amountDue += SavingDetails.getInstallment(
+                    details.weekNo, details.baseAmount, details.duration, details.preference
+                );
+                details.weekNo += 1;
             }
             details.lastDeposit = block.timestamp;
         }
@@ -217,26 +226,26 @@ contract ClixpesaSavings is
         emit Edited(msg.sender, saving.id);
     }
 
-    // Edit challenge saving space
+    // Edit challenge saving space Incomplete
     function editChallenge(
         bytes8 id,
         string memory _name,
         uint256 _baseAmount,
         uint256 _duration,
         uint256 _target,
-        ChallengPref _preference
+        ChallengePref _preference
     ) external {
         if (_baseAmount == 0) revert MustMoreBeThanZero();
         if (_duration == 0) revert MustMoreBeThanZero();
         if (_target == 0) revert MustMoreBeThanZero();
         if (savingsToOwner[id] != msg.sender) revert SavingNotFound();
         if (uint8(_preference) > 2) revert InvalidSavingType();
-
         Saving storage saving = savings[id];
+        SavingDetails.Dates memory dates = SavingDetails.getWeeklyDates(_duration, saving.createdDate);
         saving.name = _name;
         saving.targetAmount = _target;
-        saving.endDate = block.timestamp + (_duration * 1 weeks);
-        saving.payoutDate = block.timestamp + (_duration * 1 weeks);
+        saving.endDate = dates.endDate;
+        saving.payoutDate = dates.payoutDate;
         savings[id] = saving;
 
         ChallengeDetails storage details = challengeDetails[id];
@@ -337,6 +346,17 @@ contract ClixpesaSavings is
             saving.savedAmount = newAmt;
         }
         saving.lastUpdate = block.timestamp;
+        //update challenge
+        if (saving.savingType == SavingType.Challenge) {
+            ChallengeDetails storage details = challengeDetails[id];
+            if (block.timestamp > details.nextDeadline) {
+                details.nextDeadline += 1 weeks; //set next deadline
+                details.amountDue += SavingDetails.getInstallment(
+                    details.weekNo, details.baseAmount, details.duration, details.preference
+                );
+                details.weekNo += 1;
+            }
+        }
     }
 
     function _normalizeAmount(uint256 _amount, address _token) internal view returns (uint256) {

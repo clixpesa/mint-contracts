@@ -9,6 +9,7 @@ remappings = [
   '@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts',
   '@account-abstraction/contracts=lib/account-abstraction/contracts',
   '@chainlink/contracts=lib/foundry-chainlink-toolkit',
+  '@solady/contracts=lib/solady/src',
 ]
 
 [rpc_endpoints]
