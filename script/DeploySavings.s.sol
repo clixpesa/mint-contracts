@@ -9,21 +9,22 @@ import {HelperConfig} from "./HelperConfig.s.sol";
 contract DeploySavings is Script {
     address[] public supportedTokens;
 
-    function run() external returns (ClixpesaSavings, HelperConfig) {
-        uint256 deployerPrivateKey = vm.envUint("DEV_KEY");
+    function run() external returns (ClixpesaSavings, ClixpesaSavings) {
+        uint256 deployerPrivateKey = vm.envUint("PROD_KEY");
         address deployer = vm.addr(deployerPrivateKey);
+        bytes32 SALT = keccak256(abi.encodePacked(vm.envString("PROD_SALT")));
         HelperConfig helperConfig = new HelperConfig();
         (address treasury,,, address usdc, address usdt,,,) = helperConfig.activeNetworkConfig();
 
         supportedTokens = [usdc, usdt];
         vm.startBroadcast(deployerPrivateKey);
-        ClixpesaSavings savingsImplementation = new ClixpesaSavings();
-        SavingsProxy savingsProxy = new SavingsProxy(
+        ClixpesaSavings savingsImplementation = new ClixpesaSavings{salt: SALT}();
+        SavingsProxy savingsProxy = new SavingsProxy{salt: SALT}(
             address(savingsImplementation),
             abi.encodeCall(ClixpesaSavings.initialize, (deployer, treasury, supportedTokens))
         );
         ClixpesaSavings savings = ClixpesaSavings(address(savingsProxy));
         vm.stopBroadcast();
-        return (savings, helperConfig);
+        return (savings, savingsImplementation);
     }
 }

@@ -23,8 +23,10 @@ contract HelperConfig is Script {
     }
 
     constructor() {
-        if (block.chainid == 44787) {
-            activeNetworkConfig = getCeloAlfajoresConfig();
+        if (block.chainid == 84532) {
+            activeNetworkConfig = getBaseSepoliaConfig();
+        } else if (block.chainid == 8453) {
+            activeNetworkConfig = getBaseMainnetConfig();
         } else {
             activeNetworkConfig = getOrCreateAnvilConfig();
         }
@@ -34,19 +36,34 @@ contract HelperConfig is Script {
         return activeNetworkConfig;
     }
 
-    function getCeloAlfajoresConfig() public view returns (NetworkConfig memory alfajoresNetworkConfig) {
-        alfajoresNetworkConfig = NetworkConfig({
-            treasury: vm.addr(vm.envUint("VERIFIER_KEY")),
+    function getBaseSepoliaConfig() public view returns (NetworkConfig memory baseSepoliaNetworkConfig) {
+        baseSepoliaNetworkConfig = NetworkConfig({
+            treasury: vm.addr(vm.envUint("DEV_KEY")),
             entryPoint: 0x0f7F961648aE6Db43C75663aC7E5414Eb79b5704,
             paymaster: 0x0f7F961648aE6Db43C75663aC7E5414Eb79b5704, //Yet to deploy here
-            usdc: 0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1,
-            usdt: 0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1,
+            usdc: 0x036CbD53842c5426634e7929541eC2318f3dCF7e,
+            usdt: 0x22c0DB4CC9B339E34956A5699E5E95dC0E00c800,
             local: 0x1E0433C1769271ECcF4CFF9FDdD515eefE6CdF92, //cKES on celo //KEXC on other chain
             localxUSDPool: 0xabfa6E70e7277E846d5c4f7e386890B1a6367809, //cKES/cUSD
             localxNativePool: 0x52F574608865ece6BE78D9C9F103C4cEEdF59d69 //cKES/CELO
         });
 
-        return alfajoresNetworkConfig;
+        return baseSepoliaNetworkConfig;
+    }
+
+    function getBaseMainnetConfig() public view returns (NetworkConfig memory baseMainnetNetworkConfig) {
+        baseMainnetNetworkConfig = NetworkConfig({
+            treasury: 0xBf8121D5ebDD5230E96029529D1877Fe913C1Ea9,
+            entryPoint: 0x0f7F961648aE6Db43C75663aC7E5414Eb79b5704,
+            paymaster: 0x0f7F961648aE6Db43C75663aC7E5414Eb79b5704, //Yet to deploy here
+            usdc: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913,
+            usdt: 0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2,
+            local: 0x8b42830CC3656a4B6451Bb4ea4cAA2b4170C81bD, //KELI on other chain
+            localxUSDPool: 0xabfa6E70e7277E846d5c4f7e386890B1a6367809, //cKES/cUSD
+            localxNativePool: 0x52F574608865ece6BE78D9C9F103C4cEEdF59d69 //cKES/CELO
+        });
+
+        return baseMainnetNetworkConfig;
     }
 
     function getOrCreateAnvilConfig() public returns (NetworkConfig memory anvilNetworkConfig) {

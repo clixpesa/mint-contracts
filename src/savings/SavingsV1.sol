@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) Clixpesa
 
+//Proxy: 0x8BD5B3850121Cc312911F053eC8CCB2c8CAC2F7d
+//Implementation: 0xAeC5991318594A6e841711252DCA817294b4860b
+
 pragma solidity ^0.8.25;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -68,6 +71,7 @@ contract ClixpesaSavings is
     }
 
     // Create a saving space
+    // todo: Get payoutDate from set Deadline, time should be in seconds
     function create(string memory _name, uint256 _target, uint256 _deadline, uint256 _payoutDate, SavingType savingType)
         external
         notBlacklisted(msg.sender)
@@ -87,7 +91,7 @@ contract ClixpesaSavings is
             yield: 0,
             targetAmount: _target,
             endDate: _deadline,
-            payoutDate: _payoutDate,
+            payoutDate: savingType == SavingType.Flexible ? 0 : _payoutDate,
             lastUpdate: block.timestamp,
             dateCreated: block.timestamp,
             savingType: savingType,
@@ -241,7 +245,7 @@ contract ClixpesaSavings is
         if (savingsToOwner[id] != msg.sender) revert SavingNotFound();
         if (uint8(_preference) > 2) revert InvalidSavingType();
         Saving storage saving = savings[id];
-        SavingDetails.Dates memory dates = SavingDetails.getWeeklyDates(_duration, saving.createdDate);
+        SavingDetails.Dates memory dates = SavingDetails.getWeeklyDates(_duration, saving.dateCreated);
         saving.name = _name;
         saving.targetAmount = _target;
         saving.endDate = dates.endDate;
